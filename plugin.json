@@ -1,0 +1,10 @@
+{
+  "name": "bean-brewer",
+  "version": "1.0.0",
+  "description": "High-Pressure Implementation Forge: Technical extraction, architectural specs, TDD code loops, and Git PR delivery.",
+  "author": {
+    "name": "sapientcoffee"
+  },
+  "repository": "https://github.com/sapientcoffee/bean-brewer",
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# AGY / Gemini CLI
+.agents/
+.gemini/
+plans/
+scratch/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

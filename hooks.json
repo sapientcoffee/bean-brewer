@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/coffee-and-git.sh",
+            "description": "Provides a coffee tip and git history at the start of the session"
+          },
+          {
+            "type": "command",
+            "command": "./hooks/git-status.sh",
+            "description": "Injects git status into the context"
+          },
+          {
+            "type": "command",
+            "command": "./hooks/recommend-devtools.sh",
+            "description": "Recommends installing the Chrome DevTools extension"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*write_file|.*replace",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./hooks/lint-on-change.sh",
+            "timeout": 30000,
+            "description": "Runs the relevant lint test after a file is modified."
+          }
+        ]
+      }
+    ]
+  }
+}

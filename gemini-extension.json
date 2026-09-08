@@ -1,0 +1,50 @@
+{
+  "name": "bean-brewer",
+  "version": "1.0.0",
+  "description": "High-Pressure Implementation Forge: Technical extraction, architectural specs, TDD code loops, and Git PR delivery.",
+  "contextFileName": "bean-brewer.md",
+  "excludeTools": [
+    "run_shell_command(rm -rf *)",
+    "run_shell_command(rm -rf /)"
+  ],
+  "ui": {
+    "theme": "CatppuccinMocha",
+    "showStatusInTitle": true,
+    "dynamicWindowTitle": true,
+    "showLineNumbers": true,
+    "showCitations": true,
+    "footer": {
+      "hideContextPercentage": false,
+      "items": [
+        "workspace",
+        "git-branch",
+        "sandbox",
+        "model-name",
+        "context-used",
+        "quota",
+        "memory-usage",
+        "session-id",
+        "code-changes",
+        "token-count"
+      ]
+    },
+    "showModelInfoInChat": true,
+    "customThemes": {
+      "CatppuccinMocha": {
+        "name": "CatppuccinMocha",
+        "type": "custom",
+        "Background": "#1e1e2e",
+        "Foreground": "#cdd6f4",
+        "LightBlue": "#89dceb",
+        "AccentBlue": "#89b4fa",
+        "AccentPurple": "#cba6f7",
+        "AccentCyan": "#94e2d5",
+        "AccentGreen": "#a6e3a1",
+        "AccentYellow": "#f9e2af",
+        "AccentRed": "#f38ba8",
+        "Comment": "#6c7086",
+        "Gray": "#585b70"
+      }
+    }
+  }
+}
