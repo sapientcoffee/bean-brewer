@@ -1,10 +1,18 @@
+<p align="center">
+  <img src="assets/banner.png" alt="Bean-Brewer Banner" width="100%" />
+</p>
+
 # ☕ Bean-Brewer
 
-> High-Pressure Implementation Forge: Technical extraction, architectural contracts, TDD code loops, and Git PR delivery (Stages 3–9).
+> **High-Pressure Implementation Forge: Technical extraction, architectural contracts, TDD code loops, and Git PR delivery (Stages 3–9).**
 
 ---
 
-## ☕ Why "The Brewer"? (The Metaphor)
+## ☕ Why "The Brewer"? (The Metaphor Explained)
+
+<p align="center">
+  <img src="assets/sketch.png" alt="Bean-Brewer Fun Sketch" width="480px" />
+</p>
 
 In specialty coffee brewing, the espresso machine is where preparation turns into reality. Under 9 bars of controlled pressure and calibrated temperature, hot water is forced through tamped grounds to extract oils, soluble flavors, and dense golden crema.
 
@@ -57,20 +65,83 @@ In software engineering, **`bean-brewer`** is the execution forge:
 
 ---
 
-## 🔄 Delivery Workflow
+## 🔄 Detailed High-Pressure Execution Workflow
 
 ```mermaid
-graph TD
-    PRD[02_PRD.md from bean-roaster] --> Stage3["Stage 3: /research<br/>(03_EXTRACTION.md)"]
-    Stage3 --> Stage4["Stage 4: @architect<br/>(04_SPEC.md & contracts/)"]
-    Stage4 --> Stage5["Stage 5: @architect<br/>(05_PLAN.md & Vertical Slices)"]
-    Stage5 --> Gate{Stage 6: Human Gate}
-    Gate -->|Approved| Stage7["Stage 7: TDD Loop<br/>(@engineer + @auditor)"]
-    Stage7 --> Stage8["Stage 8: /record<br/>(Asciinema Walkthrough GIF)"]
-    Stage8 --> Stage9["Stage 9: git-delivery<br/>(Worktrees + gh PR)"]
-    
-    Stage5 -.->|Sync Kanban| Cup["bean-cup (visual-dashboard.html)"]
-    Stage7 -.->|Task Updates| Cup
+flowchart TD
+    subgraph Inputs["📥 Inbound Contract"]
+        PRD["02_PRD.md<br/>(from bean-roaster or bean-grinder)"]
+        RepoSource["Existing Source Codebase"]
+    end
+
+    subgraph Stage3["Stage 3: Extraction (/research)"]
+        ScoutAgent["@scout & @codebase-analyzer"]
+        ASTExtract["Factual AST Discovery & Route Mapping"]
+        EmitExtraction["Emit: 03_EXTRACTION.md"]
+    end
+
+    subgraph Stage4["Stage 4: Specification (@architect)"]
+        PatternAgent["@pattern-recognition & @context-mapping"]
+        TargetArch["Target Architecture & Threat Model"]
+        Contracts["Physical Schema Contracts<br/>Emit: contracts/"]
+        EmitSpec["Emit: 04_SPEC.md"]
+    end
+
+    subgraph Stage5["Stage 5: Execution Planning (@architect)"]
+        VerticalSlicing["Decompose into Atomic Vertical Slices"]
+        DepGraph["Dependency & Critical Path Analysis"]
+        EmitPlan["Emit: 05_PLAN.md"]
+        SyncIssues["sync Skill (Sync to GitHub Issues)"]
+    end
+
+    subgraph Gate6["🛑 Stage 6: Human Architecture Review Gate"]
+        HumanReview{"Explicit Approval Needed"}
+        RevisePlan["Revise Plan or Spec"]
+        Proceed["Approved to Implement"]
+    end
+
+    subgraph Stage7["Stage 7: TDD Implementation Loop"]
+        Worktree["worktree Skill (Isolate Branch in Git Worktree)"]
+        Engineer["@engineer Subagent (generate-code)"]
+        Auditor["@auditor Subagent (audit-code)"]
+        APITest["test:api Skill (Validate Endpoints)"]
+        ProdBuild["build:production (Verify Release Build)"]
+        TDDLoop{"Tests & Lints Pass?"}
+        EmitVerification["Emit: 07_VERIFICATION.md"]
+    end
+
+    subgraph Stage8["Stage 8: Visual & Terminal Walkthrough (/record)"]
+        Asciinema["record Skill (Asciinema Session)"]
+        RenderGIF["Compile to Animated .gif & .cast"]
+        EmitWalkthrough["Emit: 08_WALKTHROUGH.md"]
+    end
+
+    subgraph Stage9["Stage 9: Git Delivery & PR"]
+        GitDelivery["git-delivery & github-workflow"]
+        AtomicCommits["Conventional Atomic Commits"]
+        GitHubPR["gh pr create (Rich What-Why-How PR)"]
+        ArchivePlan["archive Skill (Move to ./plans/archive/)"]
+    end
+
+    PRD & RepoSource --> ScoutAgent
+    ScoutAgent --> ASTExtract --> EmitExtraction
+    EmitExtraction --> PatternAgent
+    PatternAgent --> TargetArch --> Contracts --> EmitSpec
+    EmitSpec --> VerticalSlicing --> DepGraph --> EmitPlan
+    EmitPlan --> SyncIssues
+    EmitPlan --> HumanReview
+    HumanReview -->|Changes Requested| RevisePlan --> TargetArch
+    HumanReview -->|Approved| Proceed
+    Proceed --> Worktree
+    Worktree --> Engineer
+    Engineer --> Auditor
+    Auditor --> APITest --> ProdBuild --> TDDLoop
+    TDDLoop -->|Failures / Regressions| Engineer
+    TDDLoop -->|All Passing| EmitVerification
+    EmitVerification --> Asciinema
+    Asciinema --> RenderGIF --> EmitWalkthrough
+    EmitWalkthrough --> GitDelivery
+    GitDelivery --> AtomicCommits --> GitHubPR --> ArchivePlan
 ```
 
 ---
