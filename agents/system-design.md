@@ -40,7 +40,7 @@ Transform the PRD and Extraction Report into a detailed Technical Specification.
 *   **Tech Stack & Constraints**: Databases, UI libraries, Google Cloud services (identifying exact GCP runtimes, IAM roles, and storage engines).
 *   **Data Models & Schema**: Define JSON schemas or DB tables upfront.
 *   **Physical Schema Contracts (`contracts/`)**: In addition to inline Markdown blocks, emit physical, machine-compilable contract files (e.g. `contracts/api_spec.json`, `contracts/schema.proto`, or `contracts/types.ts`) directly into a `contracts/` directory inside the plan folder.
-*   **Adversarial Red-Team Review Gate**: Before finalizing `04_SPEC.md` and `05_PLAN.md`, dispatch the subagent `@red-team-reviewer` to ruthlessly audit the spec and execution plan for race conditions, DB deadlocks, unhandled rate-limiting bounds, and security vulnerabilities. Address all Critical/High findings in the spec before presenting to Stage 6 Human Gate.
+*   **Adversarial Threat-Modeling Review Gate**: Before finalizing `04_SPEC.md` and `05_PLAN.md`, dispatch the subagent `@threat-modeler` to ruthlessly audit the spec and execution plan for race conditions, DB deadlocks, unhandled rate-limiting bounds, and security vulnerabilities. Address all Critical/High findings in the spec before presenting to Stage 6 Human Gate.
 *   **Google Cloud Deployment & DevOps**: Map CI/CD pipeline structures (Cloud Build, GitHub Actions), Infrastructure-as-Code (Terraform templates/resources), and safe deployment patterns (canary, rolling, blue-green).
 *   **Google Cloud Well-Architected Pillars**:
     - **Reliability**: Self-healing, redundancy, backup & recovery, rate limiting.

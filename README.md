@@ -43,9 +43,9 @@ In software engineering, **`bean-brewer`** is the execution forge:
 | **3** | **`research` (`skills/research`)** | Blind, factual codebase analysis. Extracts existing models, routes, and schemas into `03_EXTRACTION.md`. |
 | **4** | **`@architect` (`agents/system-design.md`)** | System architecture specification. Emits physical schema contracts in `contracts/` and documents target architecture in `04_SPEC.md`. |
 | **5** | **`@architect` (`skills/sync`)** | Cuts vertical implementation slices, performs dependency mapping in `05_PLAN.md`, and synchronizes tasks to GitHub issues. |
-| **6** | **Human Review Gate (🛑)** | Halts execution to present the specification, contracts, and plan to the user for explicit approval. |
-| **7** | **`@engineer` & `@auditor`** | Autonomous TDD execution loops: `generate-code` writes code slices, `audit-code` verifies quality, `test-api` validates backend endpoints, and `build-production` verifies production builds. |
-| **8** | **`record` (`skills/record`)** | Captures terminal interactions and compiles them into animated GIFs and `.cast` files for verifiable visual proof in `08_WALKTHROUGH.md`. |
+| **6** | **Human Review Gate (🛑) & `cycle-telemetry`** | Halts execution to present spec and plan for approval. Measures human waiting time vs compute time (Velocity Chess Clock). |
+| **7** | **`@engineer`, `code-hygiene`, `@contract-auditor`, `harness-immunizer`** | Autonomous TDD execution loops. Decouples deterministic linters (`code-hygiene`) from isolated contract compliance (`@contract-auditor`). Triggers self-healing (`harness-immunizer`) on >2 failed retries. |
+| **8** | **`record` & `@execution-verifier`** | Captures terminal playbacks (`08_WALKTHROUGH.md`). Subagent `@execution-verifier` (Velocity Reaper) acts as anti-bypass guardrail before Stage 9. |
 | **9** | **`git-delivery` & `github-workflow`** | Uses git worktrees (`worktree`) and GitHub CLI (`gh`) to create atomic conventional commits and raise rich "What, Why, How" Pull Requests. |
 | **Misc** | **`archive`, `motivate`** | Moves spent grounds into `./plans/archive/` and delivers coffee-themed encouragement. |
 
@@ -53,10 +53,12 @@ In software engineering, **`bean-brewer`** is the execution forge:
 
 ## 🤖 Barista Engineering Swarm
 
-`bean-brewer` provides 8 specialized subagents ready for dispatch:
+`bean-brewer` provides 10 specialized subagents ready for dispatch:
 - **`@architect`**: System design and physical contract modeling.
 - **`@engineer`**: Test-driven implementation and code generation.
 - **`@auditor`**: Quality verification and regression testing.
+- **`@contract-auditor`**: Isolated architectural contract auditor checking route & schema compliance against `contracts/`.
+- **`@execution-verifier`**: Velocity Reaper anti-bypass guardrail verifying physical test passes and coverage integrity.
 - **`@code-review`**: Code inspection and standards auditing.
 - **`@scout`**: Blind AST exploration and fact gathering.
 - **`@codebase-analyzer`**: Static analysis and architectural topology mapping.
@@ -94,26 +96,29 @@ flowchart TD
         SyncIssues["sync Skill (Sync to GitHub Issues)"]
     end
 
-    subgraph Gate6["🛑 Stage 6: Human Architecture Review Gate"]
-        HumanReview{"Explicit Approval Needed"}
+    subgraph Gate6["🛑 Stage 6: Human Review Gate (Chess Clock)"]
+        HumanReview{"Explicit Approval Needed<br/>(cycle-telemetry: human_wait)"}
         RevisePlan["Revise Plan or Spec"]
         Proceed["Approved to Implement"]
     end
 
-    subgraph Stage7["Stage 7: TDD Implementation Loop"]
+    subgraph Stage7["Stage 7: Decoupled TDD Implementation Loop"]
         Worktree["worktree Skill (Isolate Branch in Git Worktree)"]
         Engineer["@engineer Subagent (generate-code)"]
-        Auditor["@auditor Subagent (audit-code)"]
-        APITest["test:api Skill (Validate Endpoints)"]
-        ProdBuild["build:production (Verify Release Build)"]
-        TDDLoop{"Tests & Lints Pass?"}
-        EmitVerification["Emit: 07_VERIFICATION.md"]
+        Hygiene["code-hygiene Skill (Deterministic Non-LLM Linters)"]
+        ContractAudit["@contract-auditor Subagent (Verify contracts/)"]
+        APITest["test:api Skill & build:production"]
+        TDDLoop{"Tests, Hygiene & Contracts Pass?"}
+        HarnessPatch["harness-immunizer Skill<br/>(Self-Healing Gotcha Patch on >2 Retries)"]
+        EmitVerification["Emit: 07_VERIFICATION.md<br/>(Appends Cycle Telemetry)"]
     end
 
-    subgraph Stage8["Stage 8: Visual & Terminal Walkthrough (/record)"]
+    subgraph Stage8["Stage 8: Walkthrough & Anti-Bypass Guardrail"]
         Asciinema["record Skill (Asciinema Session)"]
         RenderGIF["Compile to Animated .gif & .cast"]
         EmitWalkthrough["Emit: 08_WALKTHROUGH.md"]
+        ReaperGate["@execution-verifier Subagent<br/>(Adversarial Reaper Check: Exit Code 0, Zero Skips, Coverage Truth)"]
+        ReaperVerdict{"Reaper Verdict"}
     end
 
     subgraph Stage9["Stage 9: Git Delivery & PR"]
@@ -134,13 +139,16 @@ flowchart TD
     HumanReview -->|Approved| Proceed
     Proceed --> Worktree
     Worktree --> Engineer
-    Engineer --> Auditor
-    Auditor --> APITest --> ProdBuild --> TDDLoop
-    TDDLoop -->|Failures / Regressions| Engineer
+    Engineer --> Hygiene --> ContractAudit --> APITest --> TDDLoop
+    TDDLoop -->|Failures <= 2| Engineer
+    TDDLoop -->|Failures > 2| HarnessPatch --> Engineer
     TDDLoop -->|All Passing| EmitVerification
     EmitVerification --> Asciinema
     Asciinema --> RenderGIF --> EmitWalkthrough
-    EmitWalkthrough --> GitDelivery
+    EmitWalkthrough --> ReaperGate
+    ReaperGate --> ReaperVerdict
+    ReaperVerdict -->|REJECTED: Bypass/Fail| Engineer
+    ReaperVerdict -->|APPROVED| GitDelivery
     GitDelivery --> AtomicCommits --> GitHubPR --> ArchivePlan
 ```
 
