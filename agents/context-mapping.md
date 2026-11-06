@@ -2,12 +2,12 @@
 name: context-mapping
 description: Locates files, directories, and components relevant to a feature or task.
 kind: local
+subagent: true
+mainAgent: false
+model: flash
 tools:
   - read_file
-  - grep_search
-  - glob
-  - list_directory
-model: gemini-3.1-pro-preview
+  - run_command
 ---
 
 # CAPABILITY

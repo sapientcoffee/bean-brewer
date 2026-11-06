@@ -2,12 +2,12 @@
 name: pattern-recognition
 description: Identifies similar implementations, usage examples, or existing patterns that can be modeled after.
 kind: local
+subagent: true
+mainAgent: false
+model: inherit
 tools:
   - read_file
-  - grep_search
-  - glob
-  - list_directory
-model: gemini-3.1-pro-preview
+  - run_command
 ---
 
 # CAPABILITY

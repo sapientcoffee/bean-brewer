@@ -1,15 +1,19 @@
 # ☕ Bean-Brewer: Implementation & Delivery Rules
 
-Welcome to **Bean-Brewer**, the high-pressure implementation forge for the Antigravity CLI (`agy`).
+Welcome to **Bean-Brewer**, the high-pressure implementation forge for Google Antigravity (`agy`).
 
-## 1. Core Engineering Discipline (No Spec, No Code)
-* **Zero Improvisation:** Never write code without an approved `02_PRD.md`, `04_SPEC.md`, and `05_PLAN.md`.
-* **Contract-Driven:** Establish physical schemas in `contracts/` before implementing business logic.
-* **TDD Loops:** Write failing unit tests first. Implement the minimum code to pass. Refactor cleanly.
-* **Stage Outputs Coexistence:** Markdown files (`03_EXTRACTION.md`, `04_SPEC.md`, `05_PLAN.md`, `06_COUNCIL_REVIEW.md`, `07_VERIFICATION.md`, `08_WALKTHROUGH.md`) are the definitive source of truth.
-* **Stage 6 Review Gates:** Before human approval (Stage 6B), validate the plan with deterministic pre-linting (`scripts/plan_lint.py`) and risk-tiered council review (`06_COUNCIL_REVIEW.md`). Issue synchronization via `skills/sync` occurs strictly post-approval (Stage 6C).
-* **Velocity Chess Clock:** Log active compute seconds versus human wait durations via `skills/cycle-telemetry` into `07_VERIFICATION.md`.
-* **Reaper Anti-Bypass Guardrail:** Before Stage 9 PR delivery, `@execution-verifier` must adversarially confirm exit code 0, zero test bypasses (`.skip`, `xit`), and coverage truth.
-* **Harness Self-Healing:** Trigger `skills/harness-immunizer` on >2 failed Stage 7 implementation retries to persist gotcha rules in `rules/gotchas/`.
-* **Opportunistic Telemetry:** If `bean-cup` is installed, update the visual dashboard via `scripts/sync_dashboard_if_available.py`. If absent, proceed seamlessly.
+## 1. Triage First (Ristretto / Cortado / Carafe)
+* **Ristretto (`XS/S`)**: $\le 2$ files, no schema changes. Bypass `.scratch/<id>/` ceremony and execute direct Red-Green-Refactor TDD with a single atomic Conventional Commit.
+* **Cortado (`M`)**: 3–6 files, localized contract changes. Run compact `.scratch/<id>/` spec & slice planning with Light Council review (`@code-inspection`).
+* **Carafe (`L/XL`)**: Multi-component architecture or $>6$ files. Execute the full pipeline from Blind Cupping (`01_QUESTIONS.md` -> `02_EXTRACTION.md`) through Spec PR promotion (`skills/promote`) and parallel Group Head execution.
 
+## 2. Core Engineering Discipline (No Spec, No Code)
+* **Blind Cupping Barrier**: Stage 2 (`skills/research`) reads *only* `.scratch/<id>/01_QUESTIONS.md` and ignores `.scratch/` specs and `Status: Proposed` ADRs.
+* **Zero Brittle File Paths in Specs**: `.scratch/<id>/04_SPEC.md` (`skills/to-spec`) defines durable module boundaries, physical schemas in `contracts/`, and `SEAM-01..N` test seams — never hardcoded source file paths.
+* **Tracer-Bullet Vertical Slices**: `.scratch/<id>/05_PLAN.md` (`skills/to-tickets`) decomposes work into vertical slices tagged `[AFK]` or `[HITL]` with `*Depends On:*` and `Covers: AC1, AC2` references.
+* **OKF Frontmatter Stamping**: Stamp all `.scratch/<id>/` artifacts deterministically via `python3 scripts/okf.py stamp`.
+* **Stage 6 Review & Promotion**: Validate plans with `scripts/plan_lint.py` and `skills/plan-council` (`.scratch/<id>/06_COUNCIL.md`), resolve PR review threads via `skills/resolve-reviews`, and promote slices via `skills/promote` (`--clean-scratch`) before squash-merging the Spec PR.
+* **Isolated Group Head TDD**: Each `@code-implementation` Group Head works inside `.worktrees/task-<id>-<slug>/` off **The Pass** (`--epic-branch epic/<id>-<slug>`) with `BEAN_WORKER_SLOT` isolation and produces **one atomic Conventional Commit per ticket**.
+* **Velocity Chess Clock**: Log active compute seconds versus human wait durations via `skills/cycle-telemetry/scripts/measure_cycle_time.py` into `07_VERIFICATION.md`.
+* **Reaper Anti-Bypass & Spec-Axis Guardrail**: Before Stage 9 PR delivery, `@execution-verifier` must confirm exit code `0`, zero test bypasses (`.skip`, `xit`), 100% `AC1..ACN` to passing test function mapping in the diff, and flip shipped ADRs from `Status: Proposed` to `Status: Accepted`.
+* **Walkthrough Asset Paths**: Store walkthrough recordings/screenshots in the plan directory and reference them in `06_WALKTHROUGH.md` using repository-root-relative paths without a leading slash.

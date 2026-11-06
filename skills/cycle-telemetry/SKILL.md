@@ -1,6 +1,6 @@
 ---
 name: cycle-telemetry
-description: Velocity Chess Clock telemetry tracker. Deterministically measures active agent compute time versus human waiting time and syncs metrics into 07_VERIFICATION.md.
+description: Velocity Chess Clock telemetry tracker. Deterministically measures active agent compute time versus human waiting time via skills/cycle-telemetry/scripts/measure_cycle_time.py and syncs metrics into 07_VERIFICATION.md.
 ---
 
 <!--
@@ -32,34 +32,34 @@ You are executing the **Cycle Telemetry** skill. This skill tracks development v
 1. **Stage 6A (Plan Council Review):**
    - When the council review loop starts:
      ```bash
-     python3 scripts/measure_cycle_time.py log --event council_exec_start --plan-dir "plans/<feature>/<timestamp>"
+     python3 skills/cycle-telemetry/scripts/measure_cycle_time.py log --event council_exec_start --plan-dir ".scratch/<id>"
      ```
    - When council arbitration concludes:
      ```bash
-     python3 scripts/measure_cycle_time.py log --event council_exec_end --plan-dir "plans/<feature>/<timestamp>"
+     python3 skills/cycle-telemetry/scripts/measure_cycle_time.py log --event council_exec_end --plan-dir ".scratch/<id>"
      ```
 2. **Stage 6B (Human Review Gate):**
    - When presenting the plan to the human:
      ```bash
-     python3 scripts/measure_cycle_time.py log --event human_wait_start --plan-dir "plans/<feature>/<timestamp>"
+     python3 skills/cycle-telemetry/scripts/measure_cycle_time.py log --event human_wait_start --plan-dir ".scratch/<id>"
      ```
    - When the human approves and execution resumes:
      ```bash
-     python3 scripts/measure_cycle_time.py log --event human_wait_end --plan-dir "plans/<feature>/<timestamp>"
+     python3 skills/cycle-telemetry/scripts/measure_cycle_time.py log --event human_wait_end --plan-dir ".scratch/<id>"
      ```
 3. **Stage 7 (Implementation & Verification Loop):**
    - When subagents or tools start implementation:
      ```bash
-     python3 scripts/measure_cycle_time.py log --event agent_exec_start --plan-dir "plans/<feature>/<timestamp>"
+     python3 skills/cycle-telemetry/scripts/measure_cycle_time.py log --event agent_exec_start --plan-dir "plans/<id>"
      ```
    - When implementation and local verifications complete:
      ```bash
-     python3 scripts/measure_cycle_time.py log --event agent_exec_end --plan-dir "plans/<feature>/<timestamp>"
+     python3 skills/cycle-telemetry/scripts/measure_cycle_time.py log --event agent_exec_end --plan-dir "plans/<id>"
      ```
-3. **Stage 8 / 9 (Walkthrough & PR Delivery):**
+4. **Stage 8 / 9 (Walkthrough & PR Delivery):**
    - Generate final summary report:
      ```bash
-     python3 scripts/measure_cycle_time.py report --plan-dir "plans/<feature>/<timestamp>"
+     python3 skills/cycle-telemetry/scripts/measure_cycle_time.py report --plan-dir "plans/<id>"
      ```
 
 ## Output Format in `07_VERIFICATION.md`

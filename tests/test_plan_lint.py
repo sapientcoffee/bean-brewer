@@ -16,11 +16,19 @@
 """Unit tests for scripts/plan_lint.py."""
 
 import os
+from pathlib import Path
 import shutil
 import tempfile
 import unittest
 
-from scripts.plan_lint import lint_plan
+from scripts.okf import stamp_file
+from scripts.plan_lint import (
+    check_sources_staleness,
+    lint_plan,
+    lint_plan_content,
+    lint_spec_content,
+    lint_spec_file,
+)
 
 
 class TestPlanLint(unittest.TestCase):
@@ -29,6 +37,7 @@ class TestPlanLint(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
         self.plan_path = os.path.join(self.test_dir, "05_PLAN.md")
         self.prd_path = os.path.join(self.test_dir, "02_PRD.md")
+        self.spec_path = os.path.join(self.test_dir, "04_SPEC.md")
         self.contracts_dir = os.path.join(self.test_dir, "contracts")
         os.makedirs(self.contracts_dir, exist_ok=True)
 
@@ -49,7 +58,6 @@ class TestPlanLint(unittest.TestCase):
         with open(self.plan_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-        # Create contract file
         with open(os.path.join(self.contracts_dir, "api.json"), "w") as f:
             f.write("{}")
 
@@ -108,7 +116,6 @@ class TestPlanLint(unittest.TestCase):
         self.assertIn("MISSING_DEPENDENCY", error_codes)
 
     def test_risk_tier_evaluation_light_vs_full(self):
-        # Light plan
         content_light = """# Small Plan
 - [ ] Step 1: Tiny update
 *Target File:* src/helper.py
@@ -120,7 +127,6 @@ class TestPlanLint(unittest.TestCase):
         report_light = lint_plan(self.plan_path)
         self.assertEqual(report_light["recommended_tier"], "Light")
 
-        # Full plan triggered by auth keyword
         content_full = """# Auth Migration Plan
 - [ ] Step 1: Update Auth Provider and Session Token
 *Target File:* src/auth.py
@@ -141,12 +147,11 @@ class TestPlanLint(unittest.TestCase):
         with open(self.plan_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-        # Create unused contract
         with open(os.path.join(self.contracts_dir, "orphan_schema.json"), "w") as f:
             f.write("{}")
 
         report = lint_plan(self.plan_path, contracts_dir=self.contracts_dir)
-        self.assertTrue(report["valid"])  # warnings do not invalidate the plan
+        self.assertTrue(report["valid"])
         warn_codes = [w["code"] for w in report["warnings"]]
         self.assertIn("UNREFERENCED_CONTRACT_FILE", warn_codes)
 
@@ -175,6 +180,52 @@ class TestPlanLint(unittest.TestCase):
         self.assertFalse(report["valid"])
         err_codes = [e["code"] for e in report["errors"]]
         self.assertIn("NO_TASKS_FOUND", err_codes)
+
+    def test_lint_spec_content_flags_brittle_file_paths(self):
+        clean_spec = """# 04_SPEC.md: Authentication Architecture
+We expose the `TokenVerifier` interface and validate JWT claims against `contracts/auth.json`.
+"""
+        clean_res = lint_spec_content(clean_spec)
+        self.assertTrue(clean_res["valid"])
+        self.assertEqual(clean_res["flagged_paths"], [])
+
+        brittle_spec = """# 04_SPEC.md: Authentication Architecture
+Modify `src/auth/token_service.ts` and `app/models/user.py` to add column checks.
+"""
+        brittle_res = lint_spec_content(brittle_spec)
+        self.assertFalse(brittle_res["valid"])
+        self.assertIn("src/auth/token_service.ts", brittle_res["flagged_paths"])
+        self.assertIn("app/models/user.py", brittle_res["flagged_paths"])
+        codes = [e["code"] for e in brittle_res["errors"]]
+        self.assertIn("SPEC_BRITTLE_FILE_PATH", codes)
+
+    def test_check_sources_staleness_detects_upstream_modification(self):
+        prd_p = Path(self.test_dir) / "03_PRD.md"
+        prd_p.write_text("# PRD v1\n- **AC1**: Initial requirement\n", encoding="utf-8")
+
+        spec_p = Path(self.spec_path)
+        spec_p.write_text("# Spec v1\nArchitecture overview.\n", encoding="utf-8")
+        stamp_file(
+            file_path=spec_p,
+            okf_type="spec",
+            stage="4_spec",
+            by="bean-brewer/to-spec",
+            sources=["03_PRD.md"],
+            bundle_dir=Path(self.test_dir),
+        )
+
+        # Freshly stamped -> valid, not stale
+        fresh = check_sources_staleness(spec_p)
+        self.assertTrue(fresh["valid"])
+        self.assertFalse(fresh["stale"])
+
+        # Mutate upstream 03_PRD.md after 04_SPEC.md was stamped
+        prd_p.write_text("# PRD v2 (mutated)\n- **AC1**: Changed requirement\n", encoding="utf-8")
+        stale = check_sources_staleness(spec_p)
+        self.assertFalse(stale["valid"])
+        self.assertTrue(stale["stale"])
+        self.assertIn("03_PRD.md", stale["stale_sources"])
+        self.assertEqual(stale["errors"][0]["code"], "STALE_SOURCE_SHA256")
 
 
 if __name__ == "__main__":
