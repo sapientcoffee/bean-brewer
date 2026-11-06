@@ -21,17 +21,6 @@
       }
     ],
     "PreToolUse": [
-      {
-        "matcher": "run_command",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "./hooks/git-status.sh",
-            "timeout": 10,
-            "description": "Checks workspace git status prior to command execution"
-          }
-        ]
-      }
     ],
     "PostToolUse": [
       {
