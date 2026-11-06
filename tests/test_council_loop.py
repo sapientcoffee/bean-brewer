@@ -32,9 +32,14 @@ for skill_script_dir in (
 
 from council_loop import (  # noqa: E402
     COUNCIL_PERSONAS,
+    JUDGE_MODELS,
+    JUDGES_PER_AREA,
     TIER_REVIEWERS,
+    aggregate_area_judges,
     compute_consensus_score,
+    get_judges_for_tier,
     get_reviewers_for_tier,
+    normalize_judge_model,
     parse_reviewer_payload,
     run_council_round,
     validate_evidence,
@@ -191,6 +196,232 @@ class TestCouncilLoop(unittest.TestCase):
         self.assertEqual(metrics["total_agent_compute_seconds"], 50.0)
         self.assertEqual(metrics["total_human_wait_seconds"], 20.0)
         self.assertEqual(metrics["total_cycle_seconds"], 95.0)
+
+    def test_judge_models_and_tier_panel_sizing(self):
+        self.assertEqual(JUDGES_PER_AREA, 3)
+        self.assertEqual(
+            [m["name"] for m in JUDGE_MODELS],
+            ["opus", "argon", "flash-3.8"],
+        )
+        self.assertEqual(normalize_judge_model("claude-opus"), "opus")
+        self.assertEqual(normalize_judge_model("gemini-4-argon"), "argon")
+        self.assertEqual(normalize_judge_model("gemini-3.8-flash"), "flash-3.8")
+        self.assertEqual(normalize_judge_model("flash 3.8"), "flash-3.8")
+
+        light_judges = get_judges_for_tier("Light")
+        std_judges = get_judges_for_tier("Standard")
+        full_judges = get_judges_for_tier("Full")
+        self.assertEqual(len(light_judges), 6)
+        self.assertEqual(len(std_judges), 9)
+        self.assertEqual(len(full_judges), 12)
+        for j in full_judges:
+            self.assertIn("persona", j)
+            self.assertIn("judge_id", j)
+            self.assertIn("model", j)
+            self.assertIn("display_model", j)
+            self.assertIn("subagent_model", j)
+
+    def test_aggregate_area_judges_deduplicates_high_and_critical_findings(self):
+        judge_payloads = [
+            {
+                "model": "opus",
+                "findings": [
+                    {
+                        "id": "AUD-CRIT-1",
+                        "severity": "CRITICAL",
+                        "quote": "Step 1: Init without verification",
+                        "target_task": "Step 1",
+                        "description": "Missing verification seam on init",
+                        "recommendation": "Add SEAM-01 test",
+                    }
+                ],
+            },
+            {
+                "model": "argon",
+                "findings": [
+                    {
+                        "id": "AUD-CRIT-1",
+                        "severity": "HIGH",
+                        "quote": "Step 1: Init without verification",
+                        "target_task": "Step 1",
+                        "description": "Missing verification seam on init",
+                        "recommendation": "Add SEAM-01 test",
+                    },
+                    {
+                        "id": "AUD-HIGH-SOLO",
+                        "severity": "HIGH",
+                        "quote": "Step 2: Unchecked contract",
+                        "target_task": "Step 2",
+                        "description": "Missing contract validation",
+                        "recommendation": "Validate contract schema",
+                    },
+                ],
+            },
+            {
+                "model": "flash-3.8",
+                "findings": [
+                    {
+                        "id": "AUD-CRIT-1",
+                        "severity": "CRITICAL",
+                        "quote": "Step 1: Init without verification",
+                        "target_task": "Step 1",
+                        "description": "Missing verification seam on init",
+                        "recommendation": "Add SEAM-01 test",
+                    }
+                ],
+            },
+        ]
+        agg = aggregate_area_judges("code-inspection", judge_payloads)
+        self.assertEqual(len(agg["findings"]), 2)
+        by_id = {f["id"]: f for f in agg["findings"]}
+        self.assertEqual(by_id["AUD-CRIT-1"]["severity"], "CRITICAL")
+        self.assertEqual(by_id["AUD-CRIT-1"]["judge_count"], 3)
+        self.assertEqual(by_id["AUD-CRIT-1"]["agreement"], "3/3")
+        self.assertEqual(by_id["AUD-CRIT-1"]["judges"], ["argon", "flash-3.8", "opus"])
+        self.assertEqual(by_id["AUD-HIGH-SOLO"]["judge_count"], 1)
+        self.assertEqual(by_id["AUD-HIGH-SOLO"]["agreement"], "1/3")
+
+    def test_aggregate_area_judges_quorum_filters_single_judge_medium_and_low(self):
+        judge_payloads = [
+            {
+                "model": "opus",
+                "findings": [
+                    {
+                        "id": "MED-QUORUM",
+                        "severity": "MEDIUM",
+                        "quote": "Step 1: Init",
+                        "target_task": "Step 1",
+                        "description": "Suboptimal retry backoff in Step 1",
+                    },
+                    {
+                        "id": "LOW-NOISE",
+                        "severity": "LOW",
+                        "quote": "Target File: src/app.py",
+                        "target_task": "Step 1",
+                        "description": "Nitpick variable naming",
+                    },
+                ],
+            },
+            {
+                "model": "argon",
+                "findings": [
+                    {
+                        "id": "MED-QUORUM",
+                        "severity": "MEDIUM",
+                        "quote": "Step 1: Init",
+                        "target_task": "Step 1",
+                        "description": "Suboptimal retry backoff in Step 1",
+                    }
+                ],
+            },
+            {
+                "model": "flash-3.8",
+                "findings": [],
+            },
+        ]
+        agg = aggregate_area_judges("code-inspection", judge_payloads)
+        self.assertEqual(len(agg["findings"]), 1)
+        self.assertEqual(agg["findings"][0]["id"], "MED-QUORUM")
+        self.assertEqual(agg["findings"][0]["agreement"], "2/3")
+        self.assertEqual(len(agg["filtered_minority_findings"]), 1)
+        self.assertEqual(agg["filtered_minority_findings"][0]["id"], "LOW-NOISE")
+
+    def test_run_council_round_with_three_judge_panel_and_colon_keys(self):
+        findings_data = {
+            "code-inspection": {
+                "judges": [
+                    {
+                        "model": "opus",
+                        "findings": [
+                            {
+                                "id": "CRIT-SHARED",
+                                "severity": "CRITICAL",
+                                "quote": "Step 1: Init",
+                                "target_task": "Step 1",
+                                "description": "Critical issue reported by all 3 judges",
+                                "recommendation": "Fix Step 1",
+                            },
+                            {
+                                "id": "MED-NOISE",
+                                "severity": "MEDIUM",
+                                "quote": "Verification: pytest",
+                                "target_task": "Step 1",
+                                "description": "Single judge medium nit",
+                            },
+                        ],
+                    },
+                    {
+                        "model": "argon",
+                        "findings": [
+                            {
+                                "id": "CRIT-SHARED",
+                                "severity": "CRITICAL",
+                                "quote": "Step 1: Init",
+                                "target_task": "Step 1",
+                                "description": "Critical issue reported by all 3 judges",
+                                "recommendation": "Fix Step 1",
+                            }
+                        ],
+                    },
+                    {
+                        "model": "flash-3.8",
+                        "findings": [
+                            {
+                                "id": "CRIT-SHARED",
+                                "severity": "CRITICAL",
+                                "quote": "Step 1: Init",
+                                "target_task": "Step 1",
+                                "description": "Critical issue reported by all 3 judges",
+                                "recommendation": "Fix Step 1",
+                            }
+                        ],
+                    },
+                ]
+            },
+            "contract-auditor:opus": {
+                "findings": [
+                    {
+                        "id": "MED-2OF3",
+                        "severity": "MEDIUM",
+                        "quote": "Target File: src/app.py",
+                        "target_task": "Step 1",
+                        "description": "Missing schema field",
+                    }
+                ]
+            },
+            "contract-auditor:argon": {
+                "findings": [
+                    {
+                        "id": "MED-2OF3",
+                        "severity": "MEDIUM",
+                        "quote": "Target File: src/app.py",
+                        "target_task": "Step 1",
+                        "description": "Missing schema field",
+                    }
+                ]
+            },
+            "contract-auditor:flash-3.8": {
+                "findings": []
+            },
+        }
+        findings_file = os.path.join(self.test_dir, "panel_findings.json")
+        with open(findings_file, "w", encoding="utf-8") as f:
+            json.dump(findings_data, f)
+
+        result = run_council_round(
+            plan_path=self.plan_path,
+            tier="Standard",
+            round_number=1,
+            findings_file=findings_file,
+        )
+        # 1 CRITICAL (-25) + 1 MEDIUM (-3) = 72.0 (MED-NOISE is filtered out, CRIT-SHARED counted once)
+        self.assertEqual(result["consensus_score"], 72.0)
+        self.assertEqual(result["matrix"]["judges_per_area"], 3)
+        self.assertEqual(result["matrix"]["judge_models"], ["opus", "argon", "flash-3.8"])
+        ci_summary = result["matrix"]["reviewer_summary"]["code-inspection"]
+        self.assertEqual(ci_summary["critical"], 1)
+        self.assertEqual(ci_summary["medium"], 0)
+        self.assertEqual(ci_summary["filtered_minority_count"], 1)
 
 
 if __name__ == "__main__":

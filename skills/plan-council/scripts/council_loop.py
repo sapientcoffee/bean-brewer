@@ -64,6 +64,55 @@ PERSONA_ALIASES = {
     "@reviewer-product": "reviewer-product",
 }
 
+JUDGES_PER_AREA = 3
+
+JUDGE_MODELS: List[Dict[str, str]] = [
+    {
+        "id": "judge-1",
+        "name": "opus",
+        "display_name": "Claude Opus",
+        "subagent_model": "pro",
+    },
+    {
+        "id": "judge-2",
+        "name": "argon",
+        "display_name": "Gemini 4 Argon",
+        "subagent_model": "inherit",
+    },
+    {
+        "id": "judge-3",
+        "name": "flash-3.8",
+        "display_name": "Gemini 3.8 Flash",
+        "subagent_model": "flash",
+    },
+]
+
+JUDGE_MODEL_ALIASES: Dict[str, str] = {
+    "opus": "opus",
+    "claude-opus": "opus",
+    "claude opus": "opus",
+    "judge-1": "opus",
+    "pro": "opus",
+    "argon": "argon",
+    "gemini-4-argon": "argon",
+    "gemini 4 argon": "argon",
+    "judge-2": "argon",
+    "inherit": "argon",
+    "flash-3.8": "flash-3.8",
+    "flash 3.8": "flash-3.8",
+    "gemini-3.8-flash": "flash-3.8",
+    "gemini 3.8 flash": "flash-3.8",
+    "flash": "flash-3.8",
+    "judge-3": "flash-3.8",
+}
+
+SEVERITY_RANK: Dict[str, int] = {
+    "CRITICAL": 4,
+    "HIGH": 3,
+    "MEDIUM": 2,
+    "LOW": 1,
+}
+
 DEFAULT_MAX_ROUNDS = 3
 CONVERGENCE_THRESHOLD = 90.0
 
@@ -74,10 +123,159 @@ def normalize_persona(persona: str) -> str:
     return PERSONA_ALIASES.get(persona.strip(), PERSONA_ALIASES.get(cleaned, cleaned))
 
 
+def normalize_judge_model(model_name: str) -> str:
+    """Normalizes judge model names to canonical ('opus', 'argon', 'flash-3.8')."""
+    cleaned = str(model_name or "").strip().lower()
+    return JUDGE_MODEL_ALIASES.get(cleaned, cleaned or "argon")
+
+
 def get_reviewers_for_tier(tier: str) -> List[str]:
     """Returns canonical reviewer names (without leading @) for the given risk tier."""
     raw = TIER_REVIEWERS.get(tier, TIER_REVIEWERS["Standard"])
     return [normalize_persona(r) for r in raw]
+
+
+def get_judges_for_tier(tier: str) -> List[Dict[str, str]]:
+    """Returns the 3-judge panel descriptors for every active reviewer area in the tier."""
+    judges: List[Dict[str, str]] = []
+    for persona in get_reviewers_for_tier(tier):
+        for model in JUDGE_MODELS:
+            judges.append({
+                "persona": persona,
+                "judge_id": f"{persona}:{model['name']}",
+                "model": model["name"],
+                "display_model": model["display_name"],
+                "subagent_model": model["subagent_model"],
+            })
+    return judges
+
+
+def _norm_text(value: Any) -> str:
+    """Normalizes text for quote/similarity comparison."""
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def _token_set(text: str) -> set:
+    """Extracts alphanumeric word tokens of length >= 3."""
+    return {tok for tok in re.findall(r"[a-z0-9_]{3,}", text.lower())}
+
+
+def _findings_match(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+    """Determines whether two findings from different judges describe the same defect."""
+    id_a = str(a.get("id") or "").strip()
+    id_b = str(b.get("id") or "").strip()
+    if id_a and id_b and id_a.lower() == id_b.lower():
+        return True
+
+    quote_a = _norm_text(a.get("quote") or a.get("evidence") or a.get("citation"))
+    quote_b = _norm_text(b.get("quote") or b.get("evidence") or b.get("citation"))
+    if len(quote_a) >= 6 and len(quote_b) >= 6:
+        if quote_a == quote_b or quote_a in quote_b or quote_b in quote_a:
+            return True
+
+    line_a = a.get("line") or a.get("line_number")
+    line_b = b.get("line") or b.get("line_number")
+    if line_a is not None and line_b is not None and str(line_a) == str(line_b):
+        return True
+
+    task_a = _norm_text(a.get("target_task"))
+    task_b = _norm_text(b.get("target_task"))
+    if task_a and task_b and task_a == task_b:
+        tokens_a = _token_set(f"{a.get('title', '')} {a.get('description', '')}")
+        tokens_b = _token_set(f"{b.get('title', '')} {b.get('description', '')}")
+        if tokens_a and tokens_b:
+            jaccard = len(tokens_a & tokens_b) / float(len(tokens_a | tokens_b))
+            if jaccard >= 0.45:
+                return True
+
+    return False
+
+
+def aggregate_area_judges(
+    persona: str,
+    judge_payloads: List[Dict[str, Any]],
+    strict_quorum_only: bool = False,
+) -> Dict[str, Any]:
+    """
+    Aggregates findings across the 3-judge panel (Opus, Argon, Flash 3.8) for one area.
+
+    Implements Safety-First Hybrid Aggregation:
+    - Deduplicates equivalent findings reported by multiple judges so consensus penalties
+      are applied once per unique defect.
+    - CRITICAL / HIGH findings pass with >= 1 judge (1-of-3 surfaces critical risks).
+    - MEDIUM / LOW findings require >= 2 judges (2-of-3 majority quorum filters noise).
+    """
+    canonical_persona = normalize_persona(persona)
+    clusters: List[Dict[str, Any]] = []
+
+    for idx, payload in enumerate(judge_payloads):
+        fallback_model = JUDGE_MODELS[idx % len(JUDGE_MODELS)]["name"]
+        raw_model = payload.get("model") or payload.get("judge") or fallback_model
+        judge_model = normalize_judge_model(str(raw_model))
+        findings = payload.get("findings", [])
+        if not isinstance(findings, list):
+            continue
+
+        for raw_finding in findings:
+            if not isinstance(raw_finding, dict):
+                continue
+            finding = dict(raw_finding)
+            sev = str(finding.get("severity", "LOW")).upper()
+            if sev not in SEVERITY_RANK:
+                sev = "LOW"
+            finding["severity"] = sev
+
+            matched_cluster = None
+            for cluster in clusters:
+                if _findings_match(cluster["finding"], finding):
+                    matched_cluster = cluster
+                    break
+
+            if matched_cluster is not None:
+                matched_cluster["judges"].add(judge_model)
+                existing = matched_cluster["finding"]
+                if SEVERITY_RANK[sev] > SEVERITY_RANK.get(existing.get("severity", "LOW"), 1):
+                    existing["severity"] = sev
+                for field in ("quote", "description", "recommendation", "target_task", "title", "id"):
+                    if not existing.get(field) and finding.get(field):
+                        existing[field] = finding[field]
+            else:
+                clusters.append({
+                    "finding": finding,
+                    "judges": {judge_model},
+                })
+
+    active_findings: List[Dict[str, Any]] = []
+    filtered_minority_findings: List[Dict[str, Any]] = []
+
+    for cluster in clusters:
+        merged = dict(cluster["finding"])
+        judges_sorted = sorted(cluster["judges"])
+        judge_count = len(judges_sorted)
+        sev = str(merged.get("severity", "LOW")).upper()
+
+        merged["persona"] = canonical_persona
+        merged["judges"] = judges_sorted
+        merged["judge_count"] = judge_count
+        merged["agreement"] = f"{judge_count}/{JUDGES_PER_AREA}"
+
+        required_quorum = 2 if (strict_quorum_only or sev in ("MEDIUM", "LOW")) else 1
+        if judge_count >= required_quorum:
+            active_findings.append(merged)
+        else:
+            filtered_minority_findings.append(merged)
+
+    has_blocker = any(
+        str(f.get("severity", "LOW")).upper() in ("CRITICAL", "HIGH")
+        for f in active_findings
+    )
+    return {
+        "persona": canonical_persona,
+        "status": "CHANGES_REQUESTED" if has_blocker else "APPROVED",
+        "judges_evaluated": len(judge_payloads),
+        "findings": active_findings,
+        "filtered_minority_findings": filtered_minority_findings,
+    }
 
 
 def compute_consensus_score(critical: int, high: int, medium: int, low: int) -> float:
@@ -209,6 +407,7 @@ def compile_council_report(
         f"- **Timestamp:** `{now_utc}`",
         f"- **Council Review Round:** `{round_number} / {DEFAULT_MAX_ROUNDS}`",
         f"- **Council Tier:** `{tier}`",
+        f"- **Judge Panel per Area:** `{JUDGES_PER_AREA} Judges (Claude Opus, Gemini 4 Argon, Gemini 3.8 Flash)`",
         f"- **Consensus Score:** **{consensus_score:.1f}%**",
         f"- **Round Verdict:** `{verdict}`",
         "",
@@ -302,8 +501,10 @@ def compile_council_report(
             for f in findings:
                 sev = f.get("severity", "LOW")
                 quote = f.get("quote", "N/A")
+                agreement = f.get("agreement", f"{JUDGES_PER_AREA}/{JUDGES_PER_AREA}")
+                judges_str = ", ".join(f.get("judges", [m["name"] for m in JUDGE_MODELS]))
                 lines.extend([
-                    f"- **[{sev}] {f.get('title', 'Finding')}**",
+                    f"- **[{sev}] {f.get('title', 'Finding')}** *(Judge Agreement: `{agreement}` — `{judges_str}`)*",
                     f"  - *Evidence Quoted:* `\"{quote}\"`",
                     f"  - *Impact:* {f.get('description', '')}",
                     f"  - *Remedy:* {f.get('recommendation', '')}",
@@ -314,6 +515,29 @@ def compile_council_report(
         lines.append("No active findings recorded across council personas.")
 
     return "\n".join(lines)
+
+
+def _normalize_legacy_single_payload(persona: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Preserves legacy single-payload findings as pre-aggregated (3/3 unanimous)."""
+    canonical = normalize_persona(persona)
+    default_judges = [m["name"] for m in JUDGE_MODELS]
+    findings = []
+    for raw_f in payload.get("findings", []):
+        if not isinstance(raw_f, dict):
+            continue
+        f_copy = dict(raw_f)
+        f_copy["persona"] = canonical
+        f_copy.setdefault("judges", list(default_judges))
+        f_copy.setdefault("judge_count", len(f_copy["judges"]))
+        f_copy.setdefault("agreement", f"{f_copy['judge_count']}/{JUDGES_PER_AREA}")
+        findings.append(f_copy)
+    return {
+        "persona": canonical,
+        "status": payload.get("status", "APPROVED"),
+        "judges_evaluated": payload.get("judges_evaluated", JUDGES_PER_AREA),
+        "findings": findings,
+        "filtered_minority_findings": payload.get("filtered_minority_findings", []),
+    }
 
 
 def run_council_round(
@@ -331,29 +555,59 @@ def run_council_round(
     # In simulated/test mode or with provided findings
     reviewer_payloads: Dict[str, Any] = {}
     if simulate or not findings_file:
-        # Default empty/passing simulation
+        # Default empty/passing simulation across all personas
         for p in COUNCIL_PERSONAS:
             reviewer_payloads[p] = {
                 "persona": p,
                 "status": "APPROVED",
+                "judges_evaluated": JUDGES_PER_AREA,
                 "findings": [],
+                "filtered_minority_findings": [],
             }
     else:
         with open(findings_file, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
-            if isinstance(raw_data, dict):
-                for k, v in raw_data.items():
+
+        grouped_by_persona: Dict[str, List[Dict[str, Any]]] = {}
+
+        if isinstance(raw_data, dict):
+            for k, v in raw_data.items():
+                if ":" in k:
+                    raw_persona, raw_model = k.split(":", 1)
+                    norm_k = normalize_persona(raw_persona)
+                    entry = dict(v) if isinstance(v, dict) else {"findings": v}
+                    entry["persona"] = norm_k
+                    entry["model"] = normalize_judge_model(raw_model)
+                    grouped_by_persona.setdefault(norm_k, []).append(entry)
+                else:
                     norm_k = normalize_persona(k)
-                    if isinstance(v, dict):
-                        v = dict(v)
-                        v["persona"] = normalize_persona(v.get("persona", norm_k))
-                    reviewer_payloads[norm_k] = v
-            elif isinstance(raw_data, list):
-                for item in raw_data:
-                    p = normalize_persona(item.get("persona", "code-inspection"))
-                    item = dict(item)
-                    item["persona"] = p
-                    reviewer_payloads[p] = item
+                    if isinstance(v, dict) and isinstance(v.get("judges"), list):
+                        reviewer_payloads[norm_k] = aggregate_area_judges(norm_k, v["judges"])
+                    elif isinstance(v, list):
+                        reviewer_payloads[norm_k] = aggregate_area_judges(norm_k, v)
+                    elif isinstance(v, dict):
+                        v_copy = dict(v)
+                        v_copy["persona"] = normalize_persona(v_copy.get("persona", norm_k))
+                        if "model" in v_copy or "judge" in v_copy:
+                            grouped_by_persona.setdefault(norm_k, []).append(v_copy)
+                        else:
+                            reviewer_payloads[norm_k] = _normalize_legacy_single_payload(norm_k, v_copy)
+        elif isinstance(raw_data, list):
+            for item in raw_data:
+                if not isinstance(item, dict):
+                    continue
+                p = normalize_persona(item.get("persona", "code-inspection"))
+                item_copy = dict(item)
+                item_copy["persona"] = p
+                if "model" in item_copy or "judge" in item_copy:
+                    grouped_by_persona.setdefault(p, []).append(item_copy)
+                elif isinstance(item_copy.get("judges"), list):
+                    reviewer_payloads[p] = aggregate_area_judges(p, item_copy["judges"])
+                else:
+                    reviewer_payloads[p] = _normalize_legacy_single_payload(p, item_copy)
+
+        for norm_k, judge_list in grouped_by_persona.items():
+            reviewer_payloads[norm_k] = aggregate_area_judges(norm_k, judge_list)
 
     # Tally results
     reviewer_summary = {}
@@ -364,9 +618,19 @@ def run_council_round(
     total_low = 0
 
     for persona in COUNCIL_PERSONAS:
-        p_data = reviewer_payloads.get(persona, {"persona": persona, "status": "APPROVED", "findings": []})
+        p_data = reviewer_payloads.get(
+            persona,
+            {
+                "persona": persona,
+                "status": "APPROVED",
+                "judges_evaluated": JUDGES_PER_AREA,
+                "findings": [],
+                "filtered_minority_findings": [],
+            },
+        )
         findings = p_data.get("findings", [])
-        
+        filtered_minority = p_data.get("filtered_minority_findings", [])
+
         crit = sum(1 for f in findings if str(f.get("severity")).upper() == "CRITICAL")
         high = sum(1 for f in findings if str(f.get("severity")).upper() == "HIGH")
         med = sum(1 for f in findings if str(f.get("severity")).upper() == "MEDIUM")
@@ -389,10 +653,13 @@ def run_council_round(
 
         reviewer_summary[persona] = {
             "status": "CHANGES_REQUESTED" if (crit + high > 0) else "APPROVED",
+            "judges_evaluated": p_data.get("judges_evaluated", JUDGES_PER_AREA),
             "critical": crit,
             "high": high,
             "medium": med,
             "low": low,
+            "filtered_minority_count": len(filtered_minority),
+            "filtered_minority_findings": filtered_minority,
             "citations_valid": citations_valid,
             "findings": findings,
         }
@@ -442,7 +709,10 @@ def run_council_round(
         "verdict": verdict,
         "consensus_score": consensus_score,
         "tier": tier,
+        "judges_per_area": JUDGES_PER_AREA,
+        "judge_models": [m["name"] for m in JUDGE_MODELS],
         "tier_reviewers": TIER_REVIEWERS.get(tier, TIER_REVIEWERS["Standard"]),
+        "tier_judges": get_judges_for_tier(tier),
         "counts": {
             "critical": total_crit,
             "high": total_high,

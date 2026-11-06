@@ -129,7 +129,7 @@ class TestSkillsSchema(unittest.TestCase):
             f for f in os.listdir(self.agents_dir)
             if f.endswith(".md") and not f.startswith(".")
         ]
-        self.assertEqual(len(agent_files), 9, f"Expected 9 agents in agents/, found {len(agent_files)}: {agent_files}")
+        self.assertEqual(len(agent_files), 11, f"Expected 11 agents in agents/, found {len(agent_files)}: {agent_files}")
 
         for agent_file in sorted(agent_files):
             agent_path = os.path.join(self.agents_dir, agent_file)
@@ -154,6 +154,70 @@ class TestSkillsSchema(unittest.TestCase):
                         f"{agent_file} uses forbidden legacy tool '{tool}'"
                     )
                 self.assertNotIn("gemini-3.1-pro-preview", content)
+
+    def test_extraction_synthesizer_and_walkthrough_recorder_agents(self):
+        expected_tools = ["read_file", "write_file", "edit_file", "run_command"]
+
+        ext_path = os.path.join(self.agents_dir, "extraction-synthesizer.md")
+        self.assertTrue(os.path.exists(ext_path), "Missing agents/extraction-synthesizer.md")
+        ext_data, ext_content = parse_frontmatter(ext_path)
+        self.assertEqual(ext_data.get("name"), "extraction-synthesizer")
+        self.assertEqual(ext_data.get("model"), "inherit")
+        self.assertEqual(ext_data.get("tools"), expected_tools)
+        self.assertIn(".scratch/<id>/01_QUESTIONS.md", ext_content)
+        self.assertIn(".scratch/<id>/02_EXTRACTION.md", ext_content)
+        self.assertIn("python3 scripts/okf.py stamp", ext_content)
+
+        rec_path = os.path.join(self.agents_dir, "walkthrough-recorder.md")
+        self.assertTrue(os.path.exists(rec_path), "Missing agents/walkthrough-recorder.md")
+        rec_data, rec_content = parse_frontmatter(rec_path)
+        self.assertEqual(rec_data.get("name"), "walkthrough-recorder")
+        self.assertEqual(rec_data.get("model"), "inherit")
+        self.assertEqual(rec_data.get("tools"), expected_tools)
+        self.assertIn("walkthrough_scenario.json", rec_content)
+        self.assertIn("python3 scripts/record.py", rec_content)
+        self.assertIn("06_WALKTHROUGH.md", rec_content)
+
+    def test_skill_subagent_delegations_and_teamwork_protocols(self):
+        with open(os.path.join(self.skills_dir, "to-spec", "SKILL.md"), "r", encoding="utf-8") as f:
+            to_spec = f.read()
+        self.assertIn("@system-design", to_spec)
+        self.assertIn("invoke_subagent", to_spec)
+
+        with open(os.path.join(self.skills_dir, "to-tickets", "SKILL.md"), "r", encoding="utf-8") as f:
+            to_tickets = f.read()
+        self.assertIn("@system-design", to_tickets)
+        self.assertIn("invoke_subagent", to_tickets)
+
+        with open(os.path.join(self.skills_dir, "research", "SKILL.md"), "r", encoding="utf-8") as f:
+            research = f.read()
+        self.assertIn("@extraction-synthesizer", research)
+        self.assertIn("/teamwork", research)
+
+        with open(os.path.join(self.skills_dir, "record", "SKILL.md"), "r", encoding="utf-8") as f:
+            record = f.read()
+        self.assertIn("@walkthrough-recorder", record)
+        self.assertIn("invoke_subagent", record)
+
+        with open(os.path.join(self.skills_dir, "plan-council", "SKILL.md"), "r", encoding="utf-8") as f:
+            plan_council = f.read()
+        self.assertIn("/teamwork", plan_council)
+        self.assertIn("@system-design", plan_council)
+        self.assertIn("@review-arbiter", plan_council)
+        self.assertIn("send_message", plan_council)
+        self.assertIn("3-Judge Panel", plan_council)
+
+        with open(os.path.join(self.skills_dir, "worktree", "SKILL.md"), "r", encoding="utf-8") as f:
+            worktree = f.read()
+        self.assertIn("/teamwork", worktree)
+        self.assertIn("@contract-auditor", worktree)
+        self.assertIn("@execution-verifier", worktree)
+
+        with open(os.path.join(self.repo_root, "rules", "AGENTS.md"), "r", encoding="utf-8") as f:
+            agents_rules = f.read()
+        self.assertIn("@extraction-synthesizer", agents_rules)
+        self.assertIn("@walkthrough-recorder", agents_rules)
+        self.assertIn("/teamwork", agents_rules)
 
     def test_hooks_json_schema(self):
         self.assertTrue(os.path.exists(self.hooks_path), f"hooks.json not found at {self.hooks_path}")

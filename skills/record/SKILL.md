@@ -23,9 +23,11 @@ limitations under the License.
 
 This skill allows agents to programmatically record terminal sessions, type out scenarios character-by-character, and render them as high-quality animated `.gif` and `.cast` files for embedding in `06_WALKTHROUGH.md`.
 
-## 🔑 Parameters & Flags
+## 🔑 Subagent Delegation & Parameters
 
-When invoking this skill, parse any command flags or arguments requested:
+To keep `@expo` inside the Smart Zone ($< 100\text{K}$ tokens) during Stage 8 verification, delegate scenario authoring (`walkthrough_scenario.json`), recording execution (`python3 scripts/record.py`), and `plans/<id>/06_WALKTHROUGH.md` compilation to **`@walkthrough-recorder`** via `invoke_subagent`.
+
+When invoking this skill directly or via `@walkthrough-recorder`, parse any command flags or arguments requested:
 *   `--scenario <path>`: Path to a scenario JSON file for automated playback.
 *   `--output <path>`: Optional destination path (without extension) for the recording.
 *   `--upload`: Optional flag to upload the session recording to asciinema.org.

@@ -80,3 +80,15 @@ python3 scripts/worktree_manager.py --action merge --task 456 --epic-branch epic
 ```bash
 python3 scripts/worktree_manager.py --action clean
 ```
+
+---
+
+## 5. Antigravity Enterprise `/teamwork` Wave Mode (Stage 7/8 Carafe Builds)
+
+For large **Carafe** builds with tightly coupled contract seams across parallel vertical slices, `@expo` can launch an **Enterprise `/teamwork` Wave** combining worktree isolation with live peer-to-peer coordination via `send_message`:
+
+- **Wave Roster**:
+  - **3x `@code-implementation` Group Heads**: Each bound to its own isolated `.worktrees/task-<id>-<slug>/` directory (`Workspace: inherit`) and dedicated `BEAN_WORKER_SLOT` (`1..3`) branched off **The Pass** (`epic/<id>-<slug>`).
+  - **`@contract-auditor`**: Monitors shared schema contracts (`contracts/`) and resolves cross-slice interface questions in real time via `send_message` without breaking worktree isolation.
+  - **`@execution-verifier` (Velocity Reaper)**: Continuously verifies merged slices on **The Pass** (`epic/<id>-<slug>`), executes the Spec-Axis Check (`AC1..ACN`), and coordinates with `@walkthrough-recorder` to produce `plans/<id>/06_WALKTHROUGH.md`.
+- **Strict Worktree Boundary**: Even in `/teamwork` mode, each `@code-implementation` Group Head modifies files **only** inside its assigned `.worktrees/task-<id>-<slug>/` worktree and produces one atomic Conventional Commit per ticket before merging into `epic/<id>-<slug>`.

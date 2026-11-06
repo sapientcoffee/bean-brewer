@@ -19,19 +19,22 @@ Before generating planning artifacts or dispatching subagents, triage every inco
 ## 2. Information Barriers & Context Hygiene
 
 1. **Stage 2 Blind Cupping (`skills/research`)**:
-   - Subagents (`research`, `@context-mapping`, `@codebase-analysis`, `@pattern-recognition`) read **only** `.scratch/<id>/01_QUESTIONS.md`.
-   - Never pass feature prompts, `.scratch/` specs, or `Status: Proposed` ADRs into Blind Cupping.
+   - Read-only scouts (`research`, `@context-mapping`, `@codebase-analysis`, `@pattern-recognition`) read **only** `.scratch/<id>/01_QUESTIONS.md`, and `@extraction-synthesizer` compiles their factual findings into `.scratch/<id>/02_EXTRACTION.md` with OKF stamping.
+   - Never pass feature prompts, `.scratch/` specs, or `Status: Proposed` ADRs into Blind Cupping, and **never** use `/teamwork` during Stage 2 Blind Cupping.
 2. **Stage 4 Durable Specifications (`skills/to-spec`)**:
-   - `.scratch/<id>/04_SPEC.md` must contain **zero brittle source file paths**. Define architecture via module boundaries, physical `contracts/`, and numbered test seams (`SEAM-01..N`).
+   - Delegate to `@system-design` via `invoke_subagent`. `.scratch/<id>/04_SPEC.md` must contain **zero brittle source file paths**. Define architecture via module boundaries, physical `contracts/`, and numbered test seams (`SEAM-01..N`).
 3. **Stage 5 Tracer-Bullet Slices (`skills/to-tickets`)**:
-   - `.scratch/<id>/05_PLAN.md` decomposes work into end-to-end vertical slices (`[AFK]` or `[HITL]`), referencing PRD acceptance criteria strictly by ID (`Covers: AC1, AC2`).
+   - Delegate to `@system-design` via `invoke_subagent`. `.scratch/<id>/05_PLAN.md` decomposes work into end-to-end vertical slices (`[AFK]` or `[HITL]`), referencing PRD acceptance criteria strictly by ID (`Covers: AC1, AC2`).
 4. **Stage 6B Promotion (`skills/promote`)**:
    - `scripts/promote.py --github --clean-scratch` provisions native GitHub Sub-Issues with verbatim ACs and `<!-- bean-slice-id -->` markers, then removes `.scratch/<id>/` before the Spec PR is squash-merged.
 
 ---
 
-## 3. Group Head Execution & Reaper Verification
+## 3. Group Head Execution, Reaper Verification, & Enterprise `/teamwork`
 
 - **Worktree & Slot Isolation (`skills/worktree`)**: Every parallel `@code-implementation` **Group Head** runs inside `.worktrees/task-<id>-<slug>/` branched off **The Pass** (`--epic-branch epic/<id>-<slug>`) with a dedicated `BEAN_WORKER_SLOT`.
 - **One Atomic Commit per Ticket**: Each Group Head executes Red-Green-Refactor and creates **one atomic Conventional Commit** for its assigned slice before merging back into **The Pass**.
-- **Velocity Reaper (`@execution-verifier`)**: Adversarially verifies exit code `0`, performs the **Spec-Axis Check** (every `AC1..ACN` maps to at least one passing test function in the diff), checks for test bypasses (`.skip`, `xit`), and flips shipped ADRs from `Status: Proposed` to `Status: Accepted`.
+- **Velocity Reaper (`@execution-verifier`) & Walkthrough Recorder (`@walkthrough-recorder`)**: `@execution-verifier` adversarially verifies exit code `0`, performs the **Spec-Axis Check** (every `AC1..ACN` maps to at least one passing test function in the diff), checks for test bypasses (`.skip`, `xit`), and flips shipped ADRs from `Status: Proposed` to `Status: Accepted`. `@walkthrough-recorder` authors `walkthrough_scenario.json`, runs `scripts/record.py`, and compiles `plans/<id>/06_WALKTHROUGH.md` with repo-root-relative asset paths without a leading slash.
+- **Enterprise `/teamwork` Council & Wave Options (`Carafe`)**:
+  - **Stage 6A `/teamwork` Council**: For high-blast-radius Carafe specs, convene `@system-design` (Plan Owner), `@contract-auditor`, `@code-inspection`, `@threat-modeler`, `@reviewer-product`, and `@review-arbiter` (Chair) via `/teamwork` (`send_message`) for live cross-examination before running `council_loop.py`.
+  - **Stage 7/8 `/teamwork` Wave**: Combine 3x `@code-implementation` Group Heads (in isolated `.worktrees/task-<id>-<slug>/` slots) with `@contract-auditor` and `@execution-verifier` to collaborate across contract seams on **The Pass**.
