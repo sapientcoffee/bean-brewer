@@ -29,7 +29,16 @@ You are executing the **Cycle Telemetry** skill. This skill tracks development v
 - Automatically render an up-to-date execution summary block in `07_VERIFICATION.md`.
 
 ## Integration Points
-1. **Stage 6 (Human Review Gate):**
+1. **Stage 6A (Plan Council Review):**
+   - When the council review loop starts:
+     ```bash
+     python3 scripts/measure_cycle_time.py log --event council_exec_start --plan-dir "plans/<feature>/<timestamp>"
+     ```
+   - When council arbitration concludes:
+     ```bash
+     python3 scripts/measure_cycle_time.py log --event council_exec_end --plan-dir "plans/<feature>/<timestamp>"
+     ```
+2. **Stage 6B (Human Review Gate):**
    - When presenting the plan to the human:
      ```bash
      python3 scripts/measure_cycle_time.py log --event human_wait_start --plan-dir "plans/<feature>/<timestamp>"
@@ -38,7 +47,7 @@ You are executing the **Cycle Telemetry** skill. This skill tracks development v
      ```bash
      python3 scripts/measure_cycle_time.py log --event human_wait_end --plan-dir "plans/<feature>/<timestamp>"
      ```
-2. **Stage 7 (Implementation & Verification Loop):**
+3. **Stage 7 (Implementation & Verification Loop):**
    - When subagents or tools start implementation:
      ```bash
      python3 scripts/measure_cycle_time.py log --event agent_exec_start --plan-dir "plans/<feature>/<timestamp>"

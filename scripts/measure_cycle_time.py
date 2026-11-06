@@ -27,6 +27,8 @@ import sys
 import time
 
 VALID_EVENTS = {
+    "council_exec_start",
+    "council_exec_end",
     "agent_exec_start",
     "agent_exec_end",
     "human_wait_start",
@@ -44,6 +46,7 @@ def load_telemetry(telemetry_file: str) -> dict:
     return {
         "events": [],
         "metrics": {
+            "total_council_review_seconds": 0.0,
             "total_agent_compute_seconds": 0.0,
             "total_human_wait_seconds": 0.0,
             "event_count": 0,
@@ -58,15 +61,23 @@ def save_telemetry(telemetry_file: str, data: dict):
 
 
 def compute_metrics(events: list) -> dict:
+    council_compute = 0.0
     agent_compute = 0.0
     human_wait = 0.0
+    last_council_start = None
     last_agent_start = None
     last_human_start = None
 
     for ev in events:
         name = ev.get("event")
         ts = ev.get("timestamp", 0.0)
-        if name == "agent_exec_start":
+        if name == "council_exec_start":
+            last_council_start = ts
+        elif name == "council_exec_end":
+            if last_council_start is not None and ts >= last_council_start:
+                council_compute += (ts - last_council_start)
+                last_council_start = None
+        elif name == "agent_exec_start":
             last_agent_start = ts
         elif name == "agent_exec_end":
             if last_agent_start is not None and ts >= last_agent_start:
@@ -79,10 +90,12 @@ def compute_metrics(events: list) -> dict:
                 human_wait += (ts - last_human_start)
                 last_human_start = None
 
-    total = agent_compute + human_wait
-    compute_ratio = (agent_compute / total * 100.0) if total > 0 else 0.0
+    total_compute = council_compute + agent_compute
+    total = total_compute + human_wait
+    compute_ratio = (total_compute / total * 100.0) if total > 0 else 0.0
 
     return {
+        "total_council_review_seconds": round(council_compute, 2),
         "total_agent_compute_seconds": round(agent_compute, 2),
         "total_human_wait_seconds": round(human_wait, 2),
         "total_cycle_seconds": round(total, 2),
@@ -92,15 +105,20 @@ def compute_metrics(events: list) -> dict:
 
 
 def format_markdown_summary(metrics: dict) -> str:
-    return (
-        "## ⏱️ Cycle Telemetry (Velocity Chess Clock)\n\n"
-        "| Metric | Value |\n"
-        "| :--- | :--- |\n"
-        f"| **Active Agent Compute** | `{metrics['total_agent_compute_seconds']}s` |\n"
-        f"| **Human Wait Duration** | `{metrics['total_human_wait_seconds']}s` |\n"
-        f"| **Total Cycle Latency** | `{metrics['total_cycle_seconds']}s` |\n"
-        f"| **Compute / Total Ratio** | `{metrics['compute_ratio_pct']}%` |\n"
-    )
+    lines = [
+        "## ⏱️ Cycle Telemetry (Velocity Chess Clock)\n\n",
+        "| Metric | Value |\n",
+        "| :--- | :--- |\n",
+    ]
+    if metrics.get("total_council_review_seconds", 0.0) > 0:
+        lines.append(f"| **Stage 6A Council Review** | `{metrics['total_council_review_seconds']}s` |\n")
+    lines.extend([
+        f"| **Active Agent Compute** | `{metrics['total_agent_compute_seconds']}s` |\n",
+        f"| **Human Wait Duration** | `{metrics['total_human_wait_seconds']}s` |\n",
+        f"| **Total Cycle Latency** | `{metrics['total_cycle_seconds']}s` |\n",
+        f"| **Compute / Total Ratio** | `{metrics['compute_ratio_pct']}%` |\n",
+    ])
+    return "".join(lines)
 
 
 def append_to_verification_file(verif_file: str, markdown_block: str):
