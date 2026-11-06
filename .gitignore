@@ -12,6 +12,7 @@ venv/
 .agents/
 .gemini/
 plans/
+.scratch/
 scratch/
 *.log
 

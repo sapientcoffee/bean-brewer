@@ -2,37 +2,45 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "./hooks/coffee-and-git.sh",
-            "description": "Provides a coffee tip and git history at the start of the session"
-          },
-          {
-            "type": "command",
-            "command": "./hooks/git-status.sh",
-            "description": "Injects git status into the context"
-          },
-          {
-            "type": "command",
-            "command": "./hooks/recommend-devtools.sh",
-            "description": "Recommends installing the Chrome DevTools extension"
-          }
-        ]
+        "type": "command",
+        "command": "./hooks/coffee-and-git.sh",
+        "timeout": 10,
+        "description": "Provides a coffee tip and git history at the start of the session"
+      },
+      {
+        "type": "command",
+        "command": "./hooks/git-status.sh",
+        "timeout": 10,
+        "description": "Injects git status into the context"
+      },
+      {
+        "type": "command",
+        "command": "./hooks/recommend-devtools.sh",
+        "timeout": 10,
+        "description": "Recommends installing the Chrome DevTools extension"
       }
+    ],
+    "PreToolUse": [
     ],
     "PostToolUse": [
       {
-        "matcher": ".*write_file|.*replace",
+        "matcher": "write_file|edit_file|replace_file_content|write_to_file",
         "hooks": [
           {
             "type": "command",
             "command": "./hooks/lint-on-change.sh",
-            "timeout": 30000,
+            "timeout": 30,
             "description": "Runs the relevant lint test after a file is modified."
           }
         ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "./hooks/git-status.sh",
+        "timeout": 10,
+        "description": "Reports final git status when the session stops"
       }
     ]
   }

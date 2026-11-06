@@ -2,12 +2,12 @@
 name: codebase-analysis
 description: Analyzes codebase implementation details. Call the codebase-analysis engine when you need to find detailed information about specific components.
 kind: local
+subagent: true
+mainAgent: false
+model: inherit
 tools:
   - read_file
-  - grep_search
-  - glob
-  - list_directory
-model: gemini-3.1-pro-preview
+  - run_command
 ---
 
 # CAPABILITY

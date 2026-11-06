@@ -14,15 +14,39 @@
 # limitations under the License.
 
 """
-Skill Schema and Frontmatter Test Suite.
-Validates all SKILL.md files in skills/ for required YAML frontmatter fields
-and script file path references.
+Skill, Agent, and Hooks Schema Test Suite.
+Validates all SKILL.md files in skills/, all agent markdown files in agents/,
+and hooks.json in the repository root.
 """
 
+import json
 import os
-import sys
 import unittest
 import yaml
+
+
+FORBIDDEN_SKILL_STRINGS = (
+    "thoughts/allison",
+    "thoughts/",
+    "allison/",
+    "TodoWrite",
+    "google_web_search",
+    "run_shell_command",
+    "03_EXTRACTION.md",
+    "08_WALKTHROUGH.md",
+)
+
+VALID_AGENT_MODELS = {"inherit", "flash", "flash_lite", "pro"}
+
+FORBIDDEN_LEGACY_TOOLS = {
+    "run_shell_command",
+    "list_directory",
+    "grep_search",
+    "replace",
+    "glob",
+    "search_file_content",
+    "activate_skill",
+}
 
 
 def find_repo_root():
@@ -30,11 +54,25 @@ def find_repo_root():
     return os.path.abspath(os.path.join(script_dir, ".."))
 
 
+def parse_frontmatter(file_path):
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    if not content.startswith("---"):
+        raise ValueError(f"{file_path} does not start with YAML frontmatter delimiter '---'")
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        raise ValueError(f"{file_path} frontmatter delimiter '---' is invalid or not closed")
+    data = yaml.safe_load(parts[1])
+    return data, content
+
+
 class TestSkillsSchema(unittest.TestCase):
 
     def setUp(self):
         self.repo_root = find_repo_root()
         self.skills_dir = os.path.join(self.repo_root, "skills")
+        self.agents_dir = os.path.join(self.repo_root, "agents")
+        self.hooks_path = os.path.join(self.repo_root, "hooks.json")
 
     def test_skills_directory_exists(self):
         self.assertTrue(os.path.exists(self.skills_dir), f"Skills directory not found at {self.skills_dir}")
@@ -56,27 +94,7 @@ class TestSkillsSchema(unittest.TestCase):
                     f"Missing SKILL.md in skill directory: {skill_folder_path}"
                 )
 
-                with open(skill_md_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                # Frontmatter parsing
-                self.assertTrue(
-                    content.startswith("---"),
-                    f"{skill_md_path} does not start with YAML frontmatter delimiter '---'"
-                )
-
-                parts = content.split("---", 2)
-                self.assertGreaterEqual(
-                    len(parts), 3,
-                    f"{skill_md_path} frontmatter delimiter '---' is invalid or not closed"
-                )
-
-                frontmatter_raw = parts[1]
-                try:
-                    data = yaml.safe_load(frontmatter_raw)
-                except Exception as e:
-                    self.fail(f"YAML parsing error in {skill_md_path}: {e}")
-
+                data, content = parse_frontmatter(skill_md_path)
                 self.assertIsInstance(
                     data, dict,
                     f"Frontmatter in {skill_md_path} must be a dictionary"
@@ -97,6 +115,84 @@ class TestSkillsSchema(unittest.TestCase):
                     data["description"],
                     f"'description' field in {skill_md_path} cannot be empty"
                 )
+
+                for forbidden in FORBIDDEN_SKILL_STRINGS:
+                    self.assertNotIn(
+                        forbidden,
+                        content,
+                        f"Forbidden legacy string '{forbidden}' found in {skill_md_path}"
+                    )
+
+    def test_all_agents_have_valid_frontmatter_and_tools(self):
+        self.assertTrue(os.path.exists(self.agents_dir), f"Agents directory not found at {self.agents_dir}")
+        agent_files = [
+            f for f in os.listdir(self.agents_dir)
+            if f.endswith(".md") and not f.startswith(".")
+        ]
+        self.assertEqual(len(agent_files), 9, f"Expected 9 agents in agents/, found {len(agent_files)}: {agent_files}")
+
+        for agent_file in sorted(agent_files):
+            agent_path = os.path.join(self.agents_dir, agent_file)
+            with self.subTest(agent=agent_file):
+                data, content = parse_frontmatter(agent_path)
+                self.assertIsInstance(data, dict)
+                self.assertEqual(data.get("kind"), "local", f"{agent_file} must have kind: local")
+                self.assertIs(data.get("subagent"), True, f"{agent_file} must have subagent: true")
+                self.assertIs(data.get("mainAgent"), False, f"{agent_file} must have mainAgent: false")
+                self.assertIn(
+                    data.get("model"),
+                    VALID_AGENT_MODELS,
+                    f"{agent_file} model '{data.get('model')}' not in {VALID_AGENT_MODELS}"
+                )
+                tools = data.get("tools", [])
+                self.assertIsInstance(tools, list, f"{agent_file} tools must be a list")
+                self.assertGreater(len(tools), 0, f"{agent_file} tools list cannot be empty")
+                for tool in tools:
+                    self.assertNotIn(
+                        tool,
+                        FORBIDDEN_LEGACY_TOOLS,
+                        f"{agent_file} uses forbidden legacy tool '{tool}'"
+                    )
+                self.assertNotIn("gemini-3.1-pro-preview", content)
+
+    def test_hooks_json_schema(self):
+        self.assertTrue(os.path.exists(self.hooks_path), f"hooks.json not found at {self.hooks_path}")
+        with open(self.hooks_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        self.assertIn("hooks", payload)
+        hooks = payload["hooks"]
+        self.assertIsInstance(hooks, dict)
+
+        for flat_event in ("SessionStart", "Stop"):
+            if flat_event in hooks:
+                event_list = hooks[flat_event]
+                self.assertIsInstance(event_list, list, f"{flat_event} must be a list")
+                for entry in event_list:
+                    self.assertIsInstance(entry, dict)
+                    self.assertNotIn(
+                        "matcher",
+                        entry,
+                        f"{flat_event} entries must be flat hook objects, not matcher wrappers"
+                    )
+                    self.assertEqual(entry.get("type"), "command")
+                    self.assertTrue(entry.get("command"))
+                    if "timeout" in entry:
+                        self.assertLessEqual(entry["timeout"], 60, f"{flat_event} timeout must be in seconds (<= 60)")
+
+        for matcher_event in ("PreToolUse", "PostToolUse"):
+            if matcher_event in hooks:
+                event_list = hooks[matcher_event]
+                self.assertIsInstance(event_list, list, f"{matcher_event} must be a list")
+                for group in event_list:
+                    self.assertIsInstance(group, dict)
+                    self.assertIn("matcher", group, f"{matcher_event} entry must have 'matcher'")
+                    self.assertIn("hooks", group, f"{matcher_event} entry must have 'hooks' list")
+                    for h in group["hooks"]:
+                        self.assertEqual(h.get("type"), "command")
+                        self.assertTrue(h.get("command"))
+                        if "timeout" in h:
+                            self.assertLessEqual(h["timeout"], 60, f"{matcher_event} timeout must be in seconds (<= 60)")
 
 
 if __name__ == "__main__":

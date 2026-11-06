@@ -32,13 +32,52 @@ from typing import Any, Dict, List, Optional, Tuple
 
 COUNCIL_PERSONAS = [
     "contract-auditor",
-    "auditor",
+    "code-inspection",
     "threat-modeler",
     "reviewer-product",
 ]
 
+TIER_REVIEWERS: Dict[str, List[str]] = {
+    "Light": [
+        "@contract-auditor",
+        "@code-inspection",
+    ],
+    "Standard": [
+        "@contract-auditor",
+        "@code-inspection",
+        "@reviewer-product",
+    ],
+    "Full": [
+        "@contract-auditor",
+        "@code-inspection",
+        "@threat-modeler",
+        "@reviewer-product",
+    ],
+}
+
+PERSONA_ALIASES = {
+    "auditor": "code-inspection",
+    "@auditor": "code-inspection",
+    "@code-inspection": "code-inspection",
+    "@contract-auditor": "contract-auditor",
+    "@threat-modeler": "threat-modeler",
+    "@reviewer-product": "reviewer-product",
+}
+
 DEFAULT_MAX_ROUNDS = 3
 CONVERGENCE_THRESHOLD = 90.0
+
+
+def normalize_persona(persona: str) -> str:
+    """Normalizes persona names, mapping legacy 'auditor' to 'code-inspection'."""
+    cleaned = persona.strip().lstrip("@")
+    return PERSONA_ALIASES.get(persona.strip(), PERSONA_ALIASES.get(cleaned, cleaned))
+
+
+def get_reviewers_for_tier(tier: str) -> List[str]:
+    """Returns canonical reviewer names (without leading @) for the given risk tier."""
+    raw = TIER_REVIEWERS.get(tier, TIER_REVIEWERS["Standard"])
+    return [normalize_persona(r) for r in raw]
 
 
 def compute_consensus_score(critical: int, high: int, medium: int, low: int) -> float:
@@ -50,12 +89,16 @@ def compute_consensus_score(critical: int, high: int, medium: int, low: int) -> 
 def parse_reviewer_payload(raw_content: str, default_persona: str) -> Dict[str, Any]:
     """Parse JSON payload or markdown-wrapped JSON from a reviewer subagent."""
     cleaned = raw_content.strip()
+    canonical_default = normalize_persona(default_persona)
 
     # Markdown fenced json block
     json_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
     if json_match:
         try:
-            return json.loads(json_match.group(1))
+            parsed = json.loads(json_match.group(1))
+            if isinstance(parsed, dict) and "persona" in parsed:
+                parsed["persona"] = normalize_persona(parsed["persona"])
+            return parsed
         except json.JSONDecodeError:
             pass
 
@@ -66,10 +109,12 @@ def parse_reviewer_payload(raw_content: str, default_persona: str) -> Dict[str, 
         try:
             parsed = json.loads(cleaned)
             if isinstance(parsed, dict):
+                if "persona" in parsed:
+                    parsed["persona"] = normalize_persona(parsed["persona"])
                 return parsed
             elif isinstance(parsed, list):
                 return {
-                    "persona": default_persona,
+                    "persona": canonical_default,
                     "status": "CHANGES_REQUESTED",
                     "findings": parsed,
                 }
@@ -78,7 +123,7 @@ def parse_reviewer_payload(raw_content: str, default_persona: str) -> Dict[str, 
 
     # Fallback to empty finding list
     return {
-        "persona": default_persona,
+        "persona": canonical_default,
         "status": "APPROVED",
         "summary": "No machine-parseable findings encountered.",
         "findings": [],
@@ -284,7 +329,7 @@ def run_council_round(
     gotchas = load_immunized_gotchas(gotchas_dir)
 
     # In simulated/test mode or with provided findings
-    reviewer_payloads = {}
+    reviewer_payloads: Dict[str, Any] = {}
     if simulate or not findings_file:
         # Default empty/passing simulation
         for p in COUNCIL_PERSONAS:
@@ -297,10 +342,17 @@ def run_council_round(
         with open(findings_file, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
             if isinstance(raw_data, dict):
-                reviewer_payloads = raw_data
+                for k, v in raw_data.items():
+                    norm_k = normalize_persona(k)
+                    if isinstance(v, dict):
+                        v = dict(v)
+                        v["persona"] = normalize_persona(v.get("persona", norm_k))
+                    reviewer_payloads[norm_k] = v
             elif isinstance(raw_data, list):
                 for item in raw_data:
-                    p = item.get("persona", "auditor")
+                    p = normalize_persona(item.get("persona", "code-inspection"))
+                    item = dict(item)
+                    item["persona"] = p
                     reviewer_payloads[p] = item
 
     # Tally results
@@ -390,6 +442,7 @@ def run_council_round(
         "verdict": verdict,
         "consensus_score": consensus_score,
         "tier": tier,
+        "tier_reviewers": TIER_REVIEWERS.get(tier, TIER_REVIEWERS["Standard"]),
         "counts": {
             "critical": total_crit,
             "high": total_high,

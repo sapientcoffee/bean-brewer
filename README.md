@@ -43,39 +43,36 @@ In software engineering, **`bean-brewer`** is the execution forge:
 
 ---
 
-## 🚀 Capabilities & Stages Reference (Stages 3–9)
+## 🚀 Capabilities & Stages Reference (Stages 2–9)
 
 | Stage | Skill / Agent | Description |
 | :---: | :--- | :--- |
-| **3** | **`research` (`skills/research`)** | Blind, factual codebase analysis. Extracts existing models, routes, and schemas into `03_EXTRACTION.md`. |
-| **4** | **`@architect` (`agents/system-design.md`) & `@threat-modeler`** | System architecture specification. Emits physical schema contracts in `contracts/`, evaluates security boundaries, and documents target architecture in `04_SPEC.md`. |
-| **5** | **`@architect`** | Cuts vertical implementation slices and performs dependency DAG mapping in `05_PLAN.md`. |
-| **6A** | **`plan-council` (`skills/plan-council`)** | Zero-token deterministic pre-linter (`scripts/plan_lint.py`) and risk-tiered council review emitting `06_COUNCIL_REVIEW.md`. |
-| **6B** | **Human Review Gate (🛑) & `cycle-telemetry`** | Halts execution to present spec, contracts, plan, and council synthesis for human approval. Measures human waiting time vs compute time (Velocity Chess Clock). |
-| **6C** | **`sync` (`skills/sync`)** | Post-approval synchronization of finalized tasks and checklists to GitHub issues. |
-| **7** | **`@engineer`, `code-hygiene`, `@contract-auditor`, `harness-immunizer`** | Autonomous TDD execution loops. Decouples deterministic linters (`code-hygiene`) from isolated contract compliance (`@contract-auditor`). Triggers self-healing (`harness-immunizer`) on >2 failed retries. Outputs `07_VERIFICATION.md`. |
-| **8** | **`record` & `@execution-verifier`** | Captures terminal playbacks (`08_WALKTHROUGH.md`). Subagent `@execution-verifier` (Velocity Reaper) acts as anti-bypass guardrail before Stage 9. |
-| **9** | **`git-delivery` & `github-workflow`** | Uses git worktrees (`worktree`) and GitHub CLI (`gh`) to create atomic conventional commits and raise rich "What, Why, How" Pull Requests. |
-| **Misc** | **`archive`, `motivate`** | Moves spent grounds into `./plans/archive/` and delivers coffee-themed encouragement. |
+| **2** | **`research` (`skills/research`)** | Blind Cupping: Factual codebase extraction without solution leakage. Reads strictly `01_QUESTIONS.md` and emits `02_EXTRACTION.md`. |
+| **4** | **`to-spec` (`skills/to-spec`) & `@architect`** | Recipe Card (Spec): Architectural specification with physical schema contracts in `contracts/`, `SEAM-01..N` test seams, and zero brittle source file paths. Emits `04_SPEC.md`. |
+| **5** | **`to-tickets` (`skills/to-tickets`)** | Recipe Card (Slices): Tracer-bullet vertical slice planning (`[AFK]` or `[HITL]`) with explicit dependency DAG and acceptance criteria mapping (`Covers: AC1, AC2`). Emits `05_PLAN.md`. |
+| **6A** | **`plan-council` (`skills/plan-council`)** | Q-Grader Panel: Zero-token deterministic pre-linter (`scripts/plan_lint.py`) and risk-tiered council review emitting `06_COUNCIL.md`. |
+| **6B** | **`promote` (`skills/promote`) & `resolve-reviews`** | Calling the Order: Spec PR review resolution (`scripts/gh_resolve_reviews.py` Four-Verdict Table) and promotion to native GitHub Sub-Issues with verbatim ACs, `<!-- bean-slice-id -->` idempotency markers, and `.scratch/` cleanup. |
+| **7** | **`@code-implementation` Group Heads & `worktree`** | Autonomous TDD execution loops in isolated worktrees (`.worktrees/task-<id>-<slug>/`) off **The Pass** (`epic/<id>-<slug>`) with `BEAN_WORKER_SLOT` isolation. Enforces deterministic linters (`skills/code-hygiene`) and produces one atomic Conventional Commit per ticket. |
+| **8** | **`record` & `@execution-verifier`** | Tasting at the Pass: Velocity Reaper anti-bypass guardrail verifying exit code 0, Spec-Axis AC mapping, and contract compliance (`@contract-auditor`), accompanied by terminal proof (`06_WALKTHROUGH.md`, `07_VERIFICATION.md`). |
+| **9** | **`git-delivery` & `archive`** | Uses git delivery pipeline and GitHub CLI (`gh`) to create atomic conventional commits, merge into target branch, and raise rich "What, Why, How" Pull Requests. Spent grounds archived to `./plans/`. |
+| **Misc** | **`cycle-telemetry`, `motivate`** | Measures active compute seconds vs human wait time (Velocity Chess Clock) and delivers coffee-themed encouragement. |
 
 ---
 
 ## 🤖 Barista Engineering Swarm
 
-`bean-brewer` provides 13 specialized subagents ready for dispatch:
-- **`@architect`**: System design and physical contract modeling.
-- **`@threat-modeler`**: ASVS Level 2 threat modeling, boundary, and auth analysis.
-- **`@engineer`**: Test-driven implementation and code generation.
-- **`@auditor`**: Quality verification, testability, and regression auditing.
-- **`@contract-auditor`**: Isolated architectural contract auditor checking route & schema compliance against `contracts/`.
-- **`@reviewer-product`**: PRD parity, scope creep defense, and behavioral parity review.
-- **`@review-arbiter`**: Multi-agent arbitration, consensus scoring, and trade-off reconciliation.
-- **`@execution-verifier`**: Velocity Reaper anti-bypass guardrail verifying physical test passes and coverage integrity.
-- **`@code-review`**: Code inspection and standards auditing.
-- **`@scout`**: Blind AST exploration and fact gathering.
-- **`@codebase-analyzer`**: Static analysis and architectural topology mapping.
-- **`@context-mapping`**: Bounded context and dependency analysis.
-- **`@pattern-recognition`**: Design pattern and architectural smell identification.
+`bean-brewer` provides 9 specialized engineering subagents ready for dispatch:
+- **`@architect` (`agents/system-design.md`)**: System design, contract modeling, and test seam architecture.
+- **`@code-implementation` (`agents/code-implementation.md`)**: Isolated Group Head test-driven implementation and code generation.
+- **`@contract-auditor` (`agents/contract-auditor.md`)**: Schema and route compliance auditor verifying physical adherence to `contracts/`.
+- **`@code-inspection` (`agents/code-inspection.md`)**: Static code standards inspection and regression auditing.
+- **`@codebase-analysis` (`agents/codebase-analysis.md`)**: Codebase cartography and static topology mapping.
+- **`@context-mapping` (`agents/context-mapping.md`)**: Bounded context, blast-radius, and dependency analysis.
+- **`@execution-verifier` (`agents/execution-verifier.md`)**: Velocity Reaper anti-bypass guardrail and Spec-Axis test verifier.
+- **`@pattern-recognition` (`agents/pattern-recognition.md`)**: Design pattern discovery and architectural smell detection.
+- **`@reviewer-product` (`agents/reviewer-product.md`)**: PRD parity, scope creep defense, and behavioral acceptance verification.
+
+*(Cross-cutting agents `@threat-modeler`, `@review-arbiter`, and master orchestrator `@expo` are provided centrally by [`bean-core`](file:///home/robedwards/workspace/bean-core)).*
 
 ---
 
@@ -84,108 +81,98 @@ In software engineering, **`bean-brewer`** is the execution forge:
 ```mermaid
 flowchart TD
     subgraph Inputs["📥 Inbound Contract"]
-        PRD["02_PRD.md<br/>(from bean-roaster or bean-grinder)"]
+        PRD["03_PRD.md<br/>(from bean-roaster or bean-grinder)"]
         RepoSource["Existing Source Codebase"]
     end
 
-    subgraph Stage3["Stage 3: Extraction (/research)"]
-        ScoutAgent["@scout & @codebase-analyzer"]
+    subgraph Stage2["Stage 2: Blind Cupping (/research)"]
+        BlindQuestions["01_QUESTIONS.md<br/>(Strictly Technical Questions)"]
+        ScoutAgent["@codebase-analysis & @context-mapping"]
         ASTExtract["Factual AST Discovery & Route Mapping"]
-        EmitExtraction["Emit: 03_EXTRACTION.md"]
+        EmitExtraction["Emit: 02_EXTRACTION.md"]
     end
 
     subgraph Stage4["Stage 4: Specification (@architect)"]
         PatternAgent["@pattern-recognition & @context-mapping"]
         TargetArch["Target Architecture & Threat Model"]
         Contracts["Physical Schema Contracts<br/>Emit: contracts/"]
-        EmitSpec["Emit: 04_SPEC.md"]
+        EmitSpec["Emit: 04_SPEC.md (SEAM-01..N)"]
     end
 
-    subgraph Stage5["Stage 5: Execution Planning (@architect)"]
-        VerticalSlicing["Decompose into Atomic Vertical Slices"]
-        DepGraph["Dependency & Critical Path Analysis"]
+    subgraph Stage5["Stage 5: Execution Planning (to-tickets)"]
+        VerticalSlicing["Decompose into Tracer-Bullet Slices<br/>[AFK] / [HITL]"]
+        DepGraph["Dependency & AC Mapping (Covers: AC1, AC2)"]
         EmitPlan["Emit: 05_PLAN.md"]
     end
 
-    subgraph Gate6["Stage 6: Review & Consensus Gate"]
-        subgraph Stage6A["Stage 6A: Council Review (plan-council)"]
+    subgraph Gate6["Stage 6: Review & Promotion Gate"]
+        subgraph Stage6A["Stage 6A: Q-Grader Council (plan-council)"]
             PlanLint["plan_lint.py (Zero-Token Pre-Linter)"]
-            CouncilSwarm["Evidence-Based Reviewer Swarm<br/>(@contract-auditor, @auditor, @threat-modeler, @reviewer-product)"]
+            CouncilSwarm["Evidence-Based Reviewer Swarm<br/>(@contract-auditor, @code-inspection, @reviewer-product, @threat-modeler)"]
             Arbiter["@review-arbiter (Propose-Only Directives)"]
-            ArchitectAccept["@architect (Accepts/Rejects Patches)"]
-            EmitCouncilReview["Emit: 06_COUNCIL_REVIEW.md"]
+            EmitCouncilReview["Emit: 06_COUNCIL.md"]
         end
 
-        subgraph Stage6B["🛑 Stage 6B: Human Review Gate (Chess Clock)"]
-            HumanReview{"Explicit Approval Needed<br/>(cycle-telemetry: human_wait)"}
-            RevisePlan["Revise Plan or Spec"]
-            Proceed["Approved to Implement"]
-        end
-
-        subgraph Stage6C["Stage 6C: Issue Provisioning"]
-            SyncIssues["sync Skill (Sync Finalized Tasks to GitHub Issues)"]
+        subgraph Stage6B["Stage 6B: Spec PR & Calling the Order (promote)"]
+            SpecPR["Spec PR (spec/<id>-<slug>)"]
+            ReviewResolve["resolve-reviews (Four-Verdict Table)"]
+            PromoteIssues["promote.py --github --clean-scratch<br/>(Verbatim ACs & <!-- bean-slice-id --> markers)"]
         end
     end
 
-    subgraph Stage7["Stage 7: Decoupled TDD Implementation Loop"]
-        Worktree["worktree Skill (Isolate Branch in Git Worktree)"]
-        Engineer["@engineer Subagent (generate-code)"]
+    subgraph Stage7["Stage 7: Isolated Group Head TDD Loops"]
+        Worktree["worktree Skill (.worktrees/task-<id>-<slug>/ on The Pass)"]
+        GroupHead["@code-implementation (BEAN_WORKER_SLOT Isolation)"]
         Hygiene["code-hygiene Skill (Deterministic Non-LLM Linters)"]
         ContractAudit["@contract-auditor Subagent (Verify contracts/)"]
-        APITest["test:api Skill & build:production"]
+        APITest["Test Execution Loop"]
         TDDLoop{"Tests, Hygiene & Contracts Pass?"}
-        HarnessPatch["harness-immunizer Skill<br/>(Self-Healing Gotcha Patch on >2 Retries)"]
-        EmitVerification["Emit: 07_VERIFICATION.md<br/>(Appends Cycle Telemetry)"]
+        AtomicCommit["One Atomic Conventional Commit per Ticket"]
     end
 
-    subgraph Stage8["Stage 8: Walkthrough & Anti-Bypass Guardrail"]
-        Asciinema["record Skill (Asciinema Session)"]
-        RenderGIF["Compile to Animated .gif & .cast"]
-        EmitWalkthrough["Emit: 08_WALKTHROUGH.md"]
-        ReaperGate["@execution-verifier Subagent<br/>(Adversarial Reaper Check: Exit Code 0, Zero Skips, Coverage Truth)"]
-        ReaperVerdict{"Reaper Verdict"}
+    subgraph Stage8["Stage 8: Tasting at the Pass & Verification"]
+        Asciinema["record Skill (Terminal Proof)"]
+        EmitWalkthrough["Emit: 06_WALKTHROUGH.md"]
+        ReaperGate["@execution-verifier Subagent<br/>(Exit Code 0, Spec-Axis AC-to-Test Check, Zero Bypasses)"]
+        EmitVerification["Emit: 07_VERIFICATION.md"]
     end
 
     subgraph Stage9["Stage 9: Git Delivery & PR"]
-        GitDelivery["git-delivery & github-workflow"]
-        AtomicCommits["Conventional Atomic Commits"]
+        GitDelivery["git-delivery (Merge The Pass to Target Branch)"]
         GitHubPR["gh pr create (Rich What-Why-How PR)"]
-        ArchivePlan["archive Skill (Move to ./plans/archive/)"]
+        ArchivePlan["archive Skill (Move to ./plans/)"]
     end
 
-    PRD & RepoSource --> ScoutAgent
+    PRD & RepoSource --> BlindQuestions
+    BlindQuestions --> ScoutAgent
     ScoutAgent --> ASTExtract --> EmitExtraction
     EmitExtraction --> PatternAgent
     PatternAgent --> TargetArch --> Contracts --> EmitSpec
     EmitSpec --> VerticalSlicing --> DepGraph --> EmitPlan
     EmitPlan --> PlanLint
-    PlanLint --> CouncilSwarm --> Arbiter --> ArchitectAccept --> EmitCouncilReview
-    EmitCouncilReview --> HumanReview
-    HumanReview -->|Changes Requested| RevisePlan --> TargetArch
-    HumanReview -->|Approved| Proceed
-    Proceed --> SyncIssues
-    SyncIssues --> Worktree
-    Worktree --> Engineer
-    Engineer --> Hygiene --> ContractAudit --> APITest --> TDDLoop
-    TDDLoop -->|Failures <= 2| Engineer
-    TDDLoop -->|Failures > 2| HarnessPatch --> Engineer
-    TDDLoop -->|All Passing| EmitVerification
-    EmitVerification --> Asciinema
-    Asciinema --> RenderGIF --> EmitWalkthrough
-    EmitWalkthrough --> ReaperGate
-    ReaperGate --> ReaperVerdict
-    ReaperVerdict -->|REJECTED: Bypass/Fail| Engineer
-    ReaperVerdict -->|APPROVED| GitDelivery
-    GitDelivery --> AtomicCommits --> GitHubPR --> ArchivePlan
+    PlanLint --> CouncilSwarm --> Arbiter --> EmitCouncilReview
+    EmitCouncilReview --> SpecPR
+    SpecPR --> ReviewResolve --> PromoteIssues
+    PromoteIssues --> Worktree
+    Worktree --> GroupHead
+    GroupHead --> Hygiene --> ContractAudit --> APITest --> TDDLoop
+    TDDLoop -->|Failures| GroupHead
+    TDDLoop -->|All Passing| AtomicCommit
+    AtomicCommit --> EmitWalkthrough & EmitVerification
+    EmitVerification --> ReaperGate
+    ReaperGate -->|REJECTED: Bypass/Fail| GroupHead
+    ReaperGate -->|APPROVED| GitDelivery
+    GitDelivery --> GitHubPR --> ArchivePlan
 ```
 
 ---
 
-## 🔌 Decoupled Telemetry
+## 🔌 Decoupled Pure CLI Telemetry & OKF Provenance
 
-`bean-brewer` includes `scripts/sync_dashboard_if_available.py`:
-- Automatically updates `visual-dashboard.html` in `bean-cup` if installed.
-- Silently succeeds if `bean-cup` is absent, allowing pure standalone headless execution in CI or isolated environments.
+`bean-brewer` adheres strictly to pure CLI SDLC execution and Google Open Knowledge Format (OKF v0.2):
+- **OKF Stage Provenance (`scripts/okf.py`)**: Deterministically stamps frontmatter with upstream SHA-256 digests, timestamps, and stage provenance pairs (`stages_completed`).
+- **Velocity Chess Clock (`skills/cycle-telemetry/scripts/measure_cycle_time.py`)**: Records active compute duration versus human waiting time into `07_VERIFICATION.md`.
+- **Session Retrospective (`scripts/retro.py`)**: Mines session transcripts for token usage, tool retries, and context health to generate `08_RETRO.md`.
 
 ---
 

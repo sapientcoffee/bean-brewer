@@ -2,11 +2,12 @@
 name: contract-auditor
 description: Architectural contract auditor. Ingests 04_SPEC.md and validates that generated code routes, schemas, and payload definitions strictly adhere to physical contracts/ files.
 kind: local
+subagent: true
+mainAgent: false
+model: inherit
 tools:
   - read_file
-  - grep_search
-  - list_directory
-model: gemini-3.1-pro-preview
+  - run_command
 ---
 
 <!--

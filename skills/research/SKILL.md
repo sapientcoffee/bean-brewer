@@ -1,198 +1,80 @@
 ---
 name: research
-description: Phase 3 - Document codebase as-is without evaluation or recommendations
+description: Stage 2 Blind Cupping factual codebase extraction. Reads only .scratch/<id>/01_QUESTIONS.md, dispatches parallel read-only subagents via invoke_subagent, writes .scratch/<id>/02_EXTRACTION.md, and stamps OKF metadata.
 ---
 
-# Research Codebase
+<!--
+Copyright 2026 Google LLC
 
-You are tasked with conducting comprehensive research across the codebase to answer user questions by spawning parallel sub-agents and synthesizing their findings.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-## Research Query:
-{{args}}
+    https://www.apache.org/licenses/LICENSE-2.0
 
-## CRITICAL: YOUR ONLY JOB IS TO DOCUMENT AND EXPLAIN THE CODEBASE AS IT EXISTS TODAY
-- DO NOT suggest improvements or changes unless the user explicitly asks for them
-- DO NOT perform root cause analysis unless the user explicitly asks for them
-- DO NOT propose future enhancements unless the user explicitly asks for them
-- DO NOT critique the implementation or identify problems
-- DO NOT recommend refactoring, optimization, or architectural changes
-- ONLY describe what exists, where it exists, how it works, and how components interact
-- You are creating a technical map/documentation of the existing system
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
 
-## Initial Setup:
+# ☕ Skill: Stage 2 Blind Cupping (`research`)
 
-When this command is invoked, respond with:
+You are executing Stage 2 **Blind Cupping** (`research`). Your sole mission is to document the codebase **as it exists today** with surgical `file:line` precision, completely isolated from feature design bias.
+
+---
+
+## 🛡️ Horthy's Blind Research Rule (Strict Information Barrier)
+
+1. **Read ONLY `.scratch/<id>/01_QUESTIONS.md`**:
+   - Ingest solely the neutral architectural questions emitted in `.scratch/<id>/01_QUESTIONS.md`.
+   - **NEVER** pass raw user feature prompts, solution hypotheses, or proposed designs to research subagents.
+2. **Ignore Unshipped Specs & Proposed ADRs**:
+   - Ignore all draft specifications or plans in `.scratch/` and ignore any `docs/adr/*.md` files with `Status: Proposed`.
+   - Only inspect live production code, tests, and `docs/adr/*.md` files with `Status: Accepted`.
+3. **Documentarians, Not Critics**:
+   - Do **NOT** suggest improvements, critiques, root-cause analyses, or architectural changes.
+   - Describe **only** what exists, where it lives (`path/to/file.py:123`), how data flows, and what patterns are currently implemented.
+
+---
+
+## ⚡ Operational Protocol
+
+### Step 1: Ingest Neutral Research Questions
+Read `.scratch/<id>/01_QUESTIONS.md` using `read_file` to extract the decomposed investigation topics.
+
+### Step 2: Fan Out Read-Only Subagents (`invoke_subagent`)
+Spawn parallel read-only subagents via `invoke_subagent` to investigate distinct questions concurrently:
+- **`research`**: Built-in read-only research subagent for broad codebase exploration.
+- **`@context-mapping`**: Fast scout (`model: flash`) to locate files, directories, entry points, and test suites.
+- **`@codebase-analysis`**: Deep execution-path tracer to document control flow, state transitions, and function signatures with `file:line` references.
+- **`@pattern-recognition`**: Pattern cataloger to extract concrete usage idioms and testing conventions from the live repository.
+
+### Step 3: Synthesize `.scratch/<id>/02_EXTRACTION.md`
+Wait for all subagents to complete and synthesize their factual findings into `.scratch/<id>/02_EXTRACTION.md`:
+
+```markdown
+# 02 Blind Cupping Extraction: <Topic>
+
+## 1. Research Questions Answered
+Summary mapping each question from `01_QUESTIONS.md` to verified codebase facts.
+
+## 2. Component & File Map
+- `path/to/module.py:10-45` — Factual description of module responsibilities.
+
+## 3. Data Flow & Execution Paths
+Step-by-step trace of live function invocations, state mutations, and error handling.
+
+## 4. Established Codebase Patterns & Test Seams
+Existing structural conventions, dependency injection points, and test harness patterns.
+
+## 5. Accepted Historical Context (`docs/adr/`)
+References to `Status: Accepted` ADRs governing the inspected subsystems.
 ```
-I'm ready to research the codebase. Please provide your research question or area of interest, and I'll analyze it thoroughly by exploring relevant components and connections.
+
+### Step 4: Stamp OKF Metadata
+Run `scripts/okf.py stamp` via `run_command` to attach deterministic OKF frontmatter:
+```bash
+python3 scripts/okf.py stamp --file ".scratch/<id>/02_EXTRACTION.md" --doc-type "extraction" --status "Complete"
 ```
-*(Note: If a query was already provided via arguments, proceed immediately to step 1 using that query.)*
-
-## Steps to follow after receiving the research query:
-
-1. **Read any directly mentioned files first:**
-   - If the user mentions specific files (tickets, docs, JSON), read them FULLY first.
-   - **IMPORTANT**: Use the `read_file` tool WITHOUT limit/offset parameters to read entire files.
-   - **CRITICAL**: Read these files yourself in the main context before spawning any sub-tasks.
-   - This ensures you have full context before decomposing the research.
-
-2. **Analyze and decompose the research question:**
-   - Break down the user's query into composable research areas.
-   - Take time to ultrathink about the underlying patterns, connections, and architectural implications the user might be seeking.
-   - Identify specific components, patterns, or concepts to investigate.
-   - Create a research plan using TodoWrite to track all subtasks.
-   - Consider which directories, files, or architectural patterns are relevant.
-
-3. **Spawn parallel sub-agent tasks for comprehensive research:**
-   - Create multiple Task agents to research different aspects concurrently.
-   - We now have specialized agents that know how to do specific research tasks:
-
-   **For codebase research:**
-   - Use the **@context-mapping** (or **context-mapping**) agent to find WHERE files and components live.
-   - Use the **@codebase-analyzer** (or **codebase-analysis**) agent to understand HOW specific code works (without critiquing it).
-   - Use the **@pattern-recognition** (or **pattern-recognition**) agent to find examples of existing patterns (without evaluating them).
-   - **Mandatory**: Search `docs/adr/` for Architecture Decision Records to understand historical design rationale.
-
-   **IMPORTANT**: All agents are documentarians, not critics. They will describe what exists without suggesting improvements or identifying issues.
-
-   **For web research:**
-   - Use the **google_web_search** tool with the **generalist** agent for external documentation and resources.
-   - Use the **web_fetch** tool to extract content from specific URLs.
-   - IF you use web-research agents or tools, instruct them to return LINKS with their findings, and please INCLUDE those links in your final report.
-
-   The key is to use these agents intelligently:
-   - Start with context mapping/scout agents to find what exists.
-   - Then use codebase analysis agents on the most promising findings to document how they work.
-   - Run multiple agents in parallel when they're searching for different things.
-   - Each agent knows its job - just tell it what you're looking for.
-   - Don't write detailed prompts about HOW to search - the agents already know.
-   - Remind agents they are documenting, not evaluating or improving.
-
-4. **Wait for all sub-agents to complete and synthesize findings:**
-   - IMPORTANT: Wait for ALL sub-agent tasks to complete before proceeding.
-   - Compile all sub-agent results (both codebase and thoughts findings).
-   - Prioritize live codebase findings as primary source of truth.
-   - Connect findings across different components.
-   - Include specific file paths and line numbers for reference.
-   - Highlight patterns, connections, and architectural decisions.
-   - Answer the user's specific questions with concrete evidence.
-
-5. **Gather metadata for the research document:**
-   - Run `run_shell_command` to generate all relevant metadata (git hash, branch, repo name).
-   - **Filename**: `plans/<feature-name>/<YYYY-MM-DD_HHMM>/03_EXTRACTION.md`
-     - *Note*: If a feature context (name and timestamp) is provided, use this path. 
-     - *Fallback*: For general research outside of a feature workflow, use `plans/thoughts/YYYY-MM-DD-ENG-XXXX-Research-Report.md`.
-   - **UI Visibility / Artifact Mirroring**: In addition to saving the document in the workspace, run `python3 scripts/manage_dashboard.py auto-sync --plan-dir "plans/<feature-name>/<timestamp>"` (or `python3 scripts/manage_dashboard.py sync-extraction ...`) to populate Stage 3 in `visual-dashboard.html` and mirror `03_extraction.md` into the assistant's private system artifacts directory (`/home/robedwards/.gemini/antigravity-cli/brain/<conversation-id>/03_extraction.md`).
-
-6. **Generate research document:**
-   - Use the metadata gathered in step 5.
-   - Structure the document with YAML frontmatter followed by content:
-     ```markdown
-     ---
-     date: [Current date and time with timezone in ISO format]
-     researcher: [Researcher name]
-     git_commit: [Current commit hash]
-     branch: [Current branch name]
-     repository: [Repository name]
-     topic: "[User's Question/Topic]"
-     tags: [research, codebase, relevant-component-names]
-     status: complete
-     last_updated: [Current date in YYYY-MM-DD format]
-     last_updated_by: [Researcher name]
-     ---
-
-     # 02 Research Report: [User's Question/Topic]
-
-     **Date**: [Current date and time]
-     **Researcher**: [Researcher name]
-     **Git Commit**: [Current commit hash]
-     **Branch**: [Current branch name]
-     **Repository**: [Repository name]
-
-     ## Research Question
-     [Original user query]
-
-     ## Summary
-     [High-level documentation of what was found, answering the user's question by describing what exists]
-
-     ## Detailed Findings
-
-     ### [Component/Area 1]
-     - Description of what exists ([file.ext:line](link))
-     - How it connects to other components
-     - Current implementation details (without evaluation)
-
-     ### [Component/Area 2]
-     ...
-
-     ## Code References
-     - `path/to/file.py:123` - Description of what's there
-     - `another/file.ts:45-67` - Description of the code block
-
-     ## Architecture Documentation
-     [Current patterns, conventions, and design implementations found in the codebase]
-
-     ## Historical Context (ADRs & Thoughts)
-     [Relevant insights from docs/adr/ and thoughts/ directory with references]
-     - `docs/adr/NNNN-something.md` - Architecture decision about X
-     - `thoughts/shared/something.md` - Historical decision about Y
-     - `thoughts/local/notes.md` - Past exploration of Z
-     Note: Paths exclude "searchable/" even if found there.
-
-     ## Related Research
-     [Links to other research documents in thoughts/shared/research/]
-
-     ## Open Questions
-     [Any areas that need further investigation]
-     ```
-
-7. **Add GitHub permalinks (if applicable):**
-   - Use `run_shell_command` to check if on main branch or if commit is pushed.
-   - If applicable, generate GitHub permalinks:
-     - Get repo info via git remotes or `gh repo view`.
-     - Create permalinks: `https://github.com/{owner}/{repo}/blob/{commit}/{file}#L{line}`
-   - Replace local file references with permalinks in the document.
-
-8. **Present findings:**
-   - Present a concise summary of findings to the user.
-   - Include key file references for easy navigation.
-   - Ask if they have follow-up questions or need clarification.
-
-9. **Handle follow-up questions:**
-   - If the user has follow-up questions, append to the same research document.
-   - Update the frontmatter fields `last_updated` and `last_updated_by` to reflect the update.
-   - Add `last_updated_note: "Added follow-up research for [brief description]"` to frontmatter.
-   - Add a new section: `## Follow-up Research [timestamp]`.
-   - Spawn new sub-agents as needed for additional investigation.
-   - Continue updating the document.
-
-## Important notes:
-- Always use parallel Task agents to maximize efficiency and minimize context usage.
-- Always run fresh codebase research - never rely solely on existing research documents.
-- The thoughts/ directory provides historical context to supplement live findings.
-- Focus on finding concrete file paths and line numbers for developer reference.
-- Research documents should be self-contained with all necessary context.
-- Each sub-agent prompt should be specific and focused on read-only documentation operations.
-- Document cross-component connections and how systems interact.
-- Include temporal context (when the research was conducted).
-- Link to GitHub when possible for permanent references.
-- Keep the main agent focused on synthesis, not deep file reading.
-- Have sub-agents document examples and usage patterns as they exist.
-- Explore all of thoughts/ directory, not just research subdirectory.
-- **CRITICAL**: You and all sub-agents are documentarians, not evaluators.
-- **REMEMBER**: Document what IS, not what SHOULD BE.
-- **NO RECOMMENDATIONS**: Only describe the current state of the codebase.
-- **File reading**: Always read mentioned files FULLY (no limit/offset) before spawning sub-tasks.
-- **Critical ordering**: Follow the numbered steps exactly.
-  - ALWAYS read mentioned files first before spawning sub-tasks (step 1).
-  - ALWAYS wait for all sub-agents to complete before synthesizing (step 4).
-  - ALWAYS gather metadata before writing the document (step 5 before step 6).
-  - NEVER write the research document with placeholder values.
-- **Path handling**: The thoughts/searchable/ directory contains hard links for searching.
-  - Always document paths by removing ONLY "searchable/" - preserve all other subdirectories.
-  - NEVER change allison/ to shared/ or vice versa - preserve the exact directory structure.
-- **Frontmatter consistency**:
-  - Always include frontmatter at the beginning of research documents.
-  - Keep frontmatter fields consistent across all research documents.
-  - Update frontmatter when adding follow-up research.
-  - Use snake_case for multi-word field names (e.g., `last_updated`, `git_commit`).
-  - Tags should be relevant to the research topic and components studied.

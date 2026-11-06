@@ -1,6 +1,6 @@
 ---
 name: archive
-description: Clears away the 'spent grounds' (completed plans) into ./plans/archive and updates .geminiignore.
+description: Clears away 'spent grounds' (completed .scratch/<id>/ and plans/<id>/ bundles) into ./plans/archive and updates .geminiignore.
 ---
 
 <!--
@@ -19,45 +19,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Brew Archive Skill
+# 🧹 Skill: Brew Archive (`archive`)
 
-This skill clears away "spent grounds" (completed plans, rejection reports, and research findings) into an archive directory to keep the workspace tidy and prevent cluttering active context in subsequent runs.
+This skill clears away "spent grounds" (completed `.scratch/<id>/` and `plans/<id>/` bundles, rejection reports, and extraction findings) into `./plans/archive/` to keep the workspace tidy and prevent cluttering active context in subsequent runs.
 
 ## 1. Objective
-To maintain a high signal-to-noise ratio in the workspace by isolating completed implementation files, research, or rejected designs from active planning directories, and to configure `.geminiignore` so that automated agents bypass the archive.
+To maintain a high signal-to-noise ratio in the workspace by isolating completed `.scratch/<id>/` and `plans/<id>/` bundles from active directories, and configuring `.geminiignore` so automated agents bypass archived artifacts.
 
 ## 2. Workflow Steps
 
-1. **Read the Master Roadmap**:
-   - Access the workspace's master roadmap (typically `./plans/00_MASTER_ROADMAP.md` or equivalent) to determine which campaigns, tasks, or phases are marked as "Completed", "Done", or are otherwise fully resolved.
+1. **Identify Completed Bundles**:
+   - Inspect `./plans/` (including `plans/<id>/` bundles and `./plans/00_MASTER_ROADMAP.md` if present) and `.scratch/<id>/` to determine which features, epics, or phases are marked `Completed`, `Shipped`, or `Done`.
 
 2. **Identify Archivable Files**:
-   - Cross-reference the completed roadmap items with existing documents in `./plans/` (or its subdirectories).
-   - Identify corresponding files such as:
-     - Executed task files (e.g., `PHASE_X.md`, timestamped sub-folders)
-     - Finished research/extraction reports (e.g., `03_EXTRACTION.md`)
-     - Finished specifications (e.g., `04_SPEC.md`)
-     - Finished validation/verification reports
-     - Rejection reports
+   - Locate completed `.scratch/<id>/` and `plans/<id>/` bundles containing:
+     - Research questions (`01_QUESTIONS.md`) and Blind Cupping extraction reports (`02_EXTRACTION.md`)
+     - Product requirements (`03_PRD.md`) and technical specifications (`04_SPEC.md`)
+     - Execution plans (`05_PLAN.md`), council reviews (`06_COUNCIL.md`), verification reports (`07_VERIFICATION.md`), and walkthroughs (`06_WALKTHROUGH.md`)
 
-3. **Archive Files**:
-   - Verify if the `./plans/archive` directory exists. If not, create it.
-   - Move all identified completed files or directories into `./plans/archive/`.
-   - **CRITICAL**: Do NOT move the Master Roadmap itself (`./plans/00_MASTER_ROADMAP.md` or equivalent), and do NOT move any plan files that are currently active or pending.
+3. **Archive Bundles**:
+   - Ensure `./plans/archive/` exists.
+   - Move completed `plans/<id>/` bundles (and any leftover local `.scratch/<id>/` bundles that were not already removed by `promote --clean-scratch`) into `./plans/archive/<id>/`.
+   - **CRITICAL**: Do NOT move `./plans/00_MASTER_ROADMAP.md` or any active/in-progress plan bundles.
 
 4. **Update `.geminiignore`**:
-   - Read the `.geminiignore` file in the root of the project. If it does not exist, create it.
-   - Check if `plans/archive/` is specified in `.geminiignore`.
-   - If not present, append the line `plans/archive/` on a new line to ensure that agents ignore archived content in subsequent sweeps.
+   - Read `.geminiignore` in the repository root (create it if absent).
+   - Ensure `plans/archive/` and `.scratch/` are listed so search and context indexing ignore spent grounds.
 
 5. **Summarize**:
-   - Output a brief, clean success message listing the specific files and directories that were successfully cleared away.
-
-## 3. Parameters and Flags
-This command/skill does not require any mandatory command-line arguments but operates based on files detected under `./plans` and referenced in the Master Roadmap.
-
-## 4. Execution Example
-Run the command via `agy` or as a task:
-```bash
-agy archive
-```
+   - Output a concise summary of archived `.scratch/<id>/` and `plans/<id>/` directories.

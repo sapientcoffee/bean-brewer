@@ -16,7 +16,7 @@
 """
 Hooks, Scripts, and JSON Configuration Validation Test Suite.
 Validates JSON configuration files, shell script syntax, Python bytecode compilation,
-and template integrity.
+and canonical script placement.
 """
 
 import json
@@ -91,14 +91,30 @@ class TestHooksAndScripts(unittest.TestCase):
                 except Exception as e:
                     self.fail(f"Python compilation failed for {rel_path}: {e}")
 
-    def test_sync_dashboard_script(self):
-        script_path = os.path.join(self.repo_root, "scripts", "sync_dashboard_if_available.py")
-        self.assertTrue(os.path.exists(script_path), f"Script missing at {script_path}")
-        # Test that running it exits with code 0 even when bean-cup is not invoked
-        import subprocess
-        res = subprocess.run([sys.executable, script_path, "--plan-dir", "/tmp"], capture_output=True)
-        self.assertEqual(res.returncode, 0)
+    def test_canonical_scripts_exist_and_duplicates_removed(self):
+        canonical_paths = [
+            os.path.join("scripts", "promote.py"),
+            os.path.join("scripts", "gh_resolve_reviews.py"),
+            os.path.join("scripts", "plan_lint.py"),
+            os.path.join("scripts", "worktree_manager.py"),
+            os.path.join("scripts", "okf.py"),
+            os.path.join("skills", "plan-council", "scripts", "council_loop.py"),
+            os.path.join("skills", "cycle-telemetry", "scripts", "measure_cycle_time.py"),
+        ]
+        for rel in canonical_paths:
+            full = os.path.join(self.repo_root, rel)
+            self.assertTrue(os.path.exists(full), f"Canonical script missing at {rel}")
 
+        obsolete_duplicates = [
+            os.path.join("scripts", "council_loop.py"),
+            os.path.join("scripts", "measure_cycle_time.py"),
+            os.path.join("scripts", "immunize_harness.py"),
+            os.path.join("scripts", "sync.py"),
+            os.path.join("scripts", "sync_dashboard_if_available.py"),
+        ]
+        for rel in obsolete_duplicates:
+            full = os.path.join(self.repo_root, rel)
+            self.assertFalse(os.path.exists(full), f"Obsolete duplicate script should be removed: {rel}")
 
 
 if __name__ == "__main__":

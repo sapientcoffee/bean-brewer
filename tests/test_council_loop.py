@@ -18,16 +18,28 @@
 import json
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 
-from scripts.measure_cycle_time import compute_metrics
-from scripts.council_loop import (
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+for skill_script_dir in (
+    os.path.join(REPO_ROOT, "skills", "plan-council", "scripts"),
+    os.path.join(REPO_ROOT, "skills", "cycle-telemetry", "scripts"),
+):
+    if skill_script_dir not in sys.path:
+        sys.path.insert(0, skill_script_dir)
+
+from council_loop import (  # noqa: E402
+    COUNCIL_PERSONAS,
+    TIER_REVIEWERS,
     compute_consensus_score,
+    get_reviewers_for_tier,
     parse_reviewer_payload,
     run_council_round,
     validate_evidence,
 )
+from measure_cycle_time import compute_metrics  # noqa: E402
 
 
 class TestCouncilLoop(unittest.TestCase):
@@ -41,6 +53,14 @@ class TestCouncilLoop(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.test_dir)
 
+    def test_tier_reviewers_uses_code_inspection(self):
+        self.assertIn("code-inspection", COUNCIL_PERSONAS)
+        self.assertNotIn("auditor", COUNCIL_PERSONAS)
+        for tier in ("Light", "Standard", "Full"):
+            self.assertIn("@code-inspection", TIER_REVIEWERS[tier])
+            self.assertNotIn("@auditor", TIER_REVIEWERS[tier])
+            self.assertIn("code-inspection", get_reviewers_for_tier(tier))
+
     def test_consensus_score_formula(self):
         self.assertEqual(compute_consensus_score(0, 0, 0, 0), 100.0)
         self.assertEqual(compute_consensus_score(1, 0, 0, 0), 75.0)
@@ -52,28 +72,25 @@ class TestCouncilLoop(unittest.TestCase):
         raw = """Here are findings:
 ```json
 {
-  "persona": "auditor",
+  "persona": "code-inspection",
   "status": "CHANGES_REQUESTED",
   "findings": [{"id": "AUD-01", "severity": "HIGH", "description": "Missing test"}]
 }
 ```
 """
-        parsed = parse_reviewer_payload(raw, "auditor")
-        self.assertEqual(parsed["persona"], "auditor")
+        parsed = parse_reviewer_payload(raw, "code-inspection")
+        self.assertEqual(parsed["persona"], "code-inspection")
         self.assertEqual(len(parsed["findings"]), 1)
 
     def test_validate_evidence_citations(self):
-        # Explicit quote
         f1 = {"quote": "Step 1: Init implementation", "description": "Issue"}
         valid1, _ = validate_evidence(f1)
         self.assertTrue(valid1)
 
-        # Backticked quote in description
         f2 = {"description": "Task references `src/app.py` directly without test"}
         valid2, _ = validate_evidence(f2)
         self.assertTrue(valid2)
 
-        # No evidence
         f3 = {"description": "I feel this might be wrong"}
         valid3, _ = validate_evidence(f3)
         self.assertFalse(valid3)
@@ -90,18 +107,18 @@ class TestCouncilLoop(unittest.TestCase):
         self.assertTrue(os.path.exists(result["report_path"]))
         self.assertTrue(os.path.exists(result["matrix_path"]))
 
-        # Verify content contains required sections
-        with open(result["report_path"], "r") as f:
+        with open(result["report_path"], "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("Stage 6A: Plan Review Council Report", content)
         self.assertIn("Decisions Requiring Human Judgment", content)
         self.assertIn("Arbiter Hardening Proposals for `@architect`", content)
         self.assertIn("Stakeholder Consensus Scorecard", content)
+        self.assertIn("@code-inspection", content)
 
     def test_critical_finding_triggers_revision_and_proposal(self):
         findings_data = {
-            "auditor": {
-                "persona": "auditor",
+            "code-inspection": {
+                "persona": "code-inspection",
                 "status": "CHANGES_REQUESTED",
                 "findings": [
                     {
@@ -116,7 +133,7 @@ class TestCouncilLoop(unittest.TestCase):
             }
         }
         findings_file = os.path.join(self.test_dir, "findings.json")
-        with open(findings_file, "w") as f:
+        with open(findings_file, "w", encoding="utf-8") as f:
             json.dump(findings_data, f)
 
         result = run_council_round(
@@ -146,7 +163,7 @@ class TestCouncilLoop(unittest.TestCase):
             }
         }
         findings_file = os.path.join(self.test_dir, "findings.json")
-        with open(findings_file, "w") as f:
+        with open(findings_file, "w", encoding="utf-8") as f:
             json.dump(findings_data, f)
 
         result = run_council_round(
@@ -156,7 +173,7 @@ class TestCouncilLoop(unittest.TestCase):
             findings_file=findings_file,
         )
         self.assertEqual(result["verdict"], "CIRCUIT_BREAKER_TRIGGERED")
-        with open(result["report_path"], "r") as f:
+        with open(result["report_path"], "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("Circuit Breaker Tripped", content)
 

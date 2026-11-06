@@ -14,17 +14,29 @@
 # limitations under the License.
 
 """
-plan_lint.py: Zero-token deterministic pre-linter for 05_PLAN.md.
+plan_lint.py: Zero-token deterministic pre-linter for 05_PLAN.md and 04_SPEC.md.
 Validates TDD harness pairing, dependency DAG acyclicity, PRD traceability,
-and physical contract references before invoking LLM council reviewers.
+physical contract references, brittle source-code file paths in 04_SPEC.md
+(per Pocock's /to-spec rule), and OKF `sources` SHA-256 staleness before
+invoking LLM council reviewers.
 """
 
+from __future__ import annotations
+
 import argparse
+from collections import defaultdict, deque
 import json
 import os
+from pathlib import Path
 import re
 import sys
-from collections import defaultdict, deque
+from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    from scripts.okf import extract_frontmatter, file_sha256
+except ImportError:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from scripts.okf import extract_frontmatter, file_sha256
 
 
 class Task:
@@ -52,33 +64,26 @@ class Task:
 
 def clean_markdown_inline(text):
     text = text.strip()
-    for wrapper in ('***', '**', '*', '`'):
+    for wrapper in ("***", "**", "*", "`"):
         if text.startswith(wrapper) and text.endswith(wrapper):
-            return text[len(wrapper):-len(wrapper)].strip()
+            return text[len(wrapper) : -len(wrapper)].strip()
     return text
 
 
-def parse_plan(plan_path):
-    if not os.path.exists(plan_path):
-        raise FileNotFoundError(f"Plan file not found: {plan_path}")
-
-    with open(plan_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-
+def parse_plan_lines(lines: List[str]) -> Tuple[List[Task], List[str]]:
     tasks_by_label = {}
     tasks_order = []
 
     checklist_pattern = re.compile(
-        r'^\s*[\-\*]\s+\[([ xX])\]\s*(?:\*\*)?\s*((?:Step|Task)\s+[\w\.\-]+)(?:\s+\[[^\]]+\])?(?:\*\*)?[:\-]\s*(?:\*\*)?\s*(.*)$',
-        re.IGNORECASE
+        r"^\s*[\-\*]\s+\[([ xX])\]\s*(?:\*\*)?\s*((?:Step|Task|Slice)\s+[\w\.\-]+)(?:\s+\[[^\]]+\])?(?:\*\*)?[:\-]\s*(?:\*\*)?\s*(.*)$",
+        re.IGNORECASE,
     )
 
     step_header_pattern = re.compile(
-        r'^#{2,4}\s*(?:\*\*)?\s*((?:Step|Task)\s+[\w\.\-]+)(?:\*\*)?\s*(.*)$',
-        re.IGNORECASE
+        r"^#{2,4}\s*(?:\*\*)?\s*((?:Step|Task|Slice)\s+[\w\.\-]+)(?:\*\*)?\s*(.*)$",
+        re.IGNORECASE,
     )
 
-    # First Pass: discover tasks and collect inline checklist details
     current_inline_task = None
     inline_details = []
 
@@ -88,7 +93,7 @@ def parse_plan(plan_path):
             if current_inline_task and inline_details:
                 _parse_task_details(current_inline_task, inline_details)
                 inline_details = []
-            is_done = match.group(1).lower() == 'x'
+            is_done = match.group(1).lower() == "x"
             step_label = match.group(2).strip().upper()
             step_name = match.group(3).strip().rstrip("*").strip()
             task = Task(step_label, step_name, is_done, line_num=idx)
@@ -98,7 +103,7 @@ def parse_plan(plan_path):
             continue
 
         if current_inline_task:
-            if line.startswith('#'):
+            if line.startswith("#"):
                 _parse_task_details(current_inline_task, inline_details)
                 current_inline_task = None
                 inline_details = []
@@ -108,7 +113,6 @@ def parse_plan(plan_path):
     if current_inline_task and inline_details:
         _parse_task_details(current_inline_task, inline_details)
 
-    # Second Pass: collect details under headers (if present)
     current_header_task = None
     detail_lines = []
 
@@ -123,7 +127,7 @@ def parse_plan(plan_path):
             continue
 
         if current_header_task:
-            if line.startswith('# ') or line.startswith('## '):
+            if line.startswith("# ") or line.startswith("## "):
                 _parse_task_details(current_header_task, detail_lines)
                 current_header_task = None
                 detail_lines = []
@@ -136,10 +140,20 @@ def parse_plan(plan_path):
     return [tasks_by_label[lbl] for lbl in tasks_order if lbl in tasks_by_label], lines
 
 
+def parse_plan(plan_path):
+    if not os.path.exists(plan_path):
+        raise FileNotFoundError(f"Plan file not found: {plan_path}")
+
+    with open(plan_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    return parse_plan_lines(lines)
+
+
 def _parse_task_details(task, lines):
-    target_pattern = re.compile(r'^\s*[*\-\s]*target file[*:\s]+\s*(.+)$', re.IGNORECASE)
-    verify_pattern = re.compile(r'^\s*[*\-\s]*verification[*:\s]+\s*(.+)$', re.IGNORECASE)
-    depends_pattern = re.compile(r'^\s*[*\-\s]*depends on[*:\s]+\s*(.+)$', re.IGNORECASE)
+    target_pattern = re.compile(r"^\s*[*\-\s]*target file[*:\s]+\s*(.+)$", re.IGNORECASE)
+    verify_pattern = re.compile(r"^\s*[*\-\s]*verification[*:\s]+\s*(.+)$", re.IGNORECASE)
+    depends_pattern = re.compile(r"^\s*[*\-\s]*depends on[*:\s]+\s*(.+)$", re.IGNORECASE)
 
     instructions = []
     for line in lines:
@@ -167,11 +181,14 @@ def check_tdd_pairing(tasks):
     errors = []
     warnings = []
     for task in tasks:
-        # Check if task is an implementation task (targets a non-test file or implementation name)
-        is_test_task = any(kw in task.name.lower() or kw in task.target_file.lower() 
-                           for kw in ["test", "harness", "spec", "fixture", "mock"])
-        is_doc_task = any(kw in task.name.lower() or kw in task.target_file.lower() 
-                          for kw in [".md", "doc", "readme", "diagram"])
+        is_test_task = any(
+            kw in task.name.lower() or kw in task.target_file.lower()
+            for kw in ["test", "harness", "spec", "fixture", "mock"]
+        )
+        is_doc_task = any(
+            kw in task.name.lower() or kw in task.target_file.lower()
+            for kw in [".md", "doc", "readme", "diagram"]
+        )
 
         if not is_test_task and not is_doc_task:
             has_verification = bool(task.verification and len(task.verification.strip()) > 3)
@@ -180,7 +197,7 @@ def check_tdd_pairing(tasks):
                     "task": task.label,
                     "line": task.line_num,
                     "code": "TDD_MISSING_VERIFICATION",
-                    "message": f"{task.label} ('{task.name}') has no declared *Verification:* criteria or test command."
+                    "message": f"{task.label} ('{task.name}') has no declared *Verification:* criteria or test command.",
                 })
     return errors, warnings
 
@@ -202,13 +219,12 @@ def check_dependencies(tasks):
                     "task": t.label,
                     "line": t.line_num,
                     "code": "MISSING_DEPENDENCY",
-                    "message": f"{t.label} declares dependency on non-existent task '{dep}'."
+                    "message": f"{t.label} declares dependency on non-existent task '{dep}'.",
                 })
             else:
                 adj[dep].append(t.label)
                 in_degree[t.label] += 1
 
-    # Kahn's algorithm for cycle detection
     queue = deque([lbl for lbl, deg in in_degree.items() if deg == 0])
     visited_count = 0
 
@@ -226,7 +242,7 @@ def check_dependencies(tasks):
             "task": "PLAN_DAG",
             "line": 1,
             "code": "CIRCULAR_DEPENDENCY",
-            "message": f"Circular dependency detected in execution plan involving: {', '.join(unresolved)}"
+            "message": f"Circular dependency detected in execution plan involving: {', '.join(unresolved)}",
         })
 
     return errors, warnings
@@ -241,8 +257,7 @@ def check_prd_traceability(tasks, prd_path, plan_content):
     with open(prd_path, "r", encoding="utf-8") as f:
         prd_content = f.read()
 
-    # Extract user story or requirement IDs like US-1, REQ-1, Story 1, Epic 1
-    story_pattern = re.compile(r'\b(US-\d+|REQ-\d+|Story\s+\d+|User\s+Story\s+\d+)\b', re.IGNORECASE)
+    story_pattern = re.compile(r"\b(US-\d+|REQ-\d+|Story\s+\d+|User\s+Story\s+\d+)\b", re.IGNORECASE)
     prd_stories = set(story_pattern.findall(prd_content))
 
     if prd_stories:
@@ -255,7 +270,7 @@ def check_prd_traceability(tasks, prd_path, plan_content):
                 "task": "PRD_TRACEABILITY",
                 "line": 1,
                 "code": "UNMAPPED_PRD_REQUIREMENT",
-                "message": f"PRD user stories/requirements not explicitly referenced in 05_PLAN.md: {', '.join(unmapped_stories)}"
+                "message": f"PRD user stories/requirements not explicitly referenced in 05_PLAN.md: {', '.join(unmapped_stories)}",
             })
 
     return errors, warnings
@@ -279,7 +294,7 @@ def check_contract_integrity(tasks, contracts_dir, plan_content):
                 "task": "CONTRACT_INTEGRITY",
                 "line": 1,
                 "code": "UNREFERENCED_CONTRACT_FILE",
-                "message": f"Contract file '{c_file}' in contracts/ is not referenced by any task in 05_PLAN.md."
+                "message": f"Contract file '{c_file}' in contracts/ is not referenced by any task in 05_PLAN.md.",
             })
 
     return errors, warnings
@@ -294,13 +309,13 @@ def evaluate_risk_tier(tasks, contracts_dir, full_text):
     """
     num_tasks = len(tasks)
     has_contracts = bool(contracts_dir and os.path.exists(contracts_dir) and os.listdir(contracts_dir))
-    
+
     high_risk_keywords = [
-        "auth", "authentication", "authorization", "rbac", "migration", 
-        "security", "iam", "crypto", "encryption", "jwt", "session"
+        "auth", "authentication", "authorization", "rbac", "migration",
+        "security", "iam", "crypto", "encryption", "jwt", "session",
     ]
     has_high_risk_keywords = any(
-        re.search(r'\b' + re.escape(kw) + r'\b', full_text, re.IGNORECASE)
+        re.search(r"\b" + re.escape(kw) + r"\b", full_text, re.IGNORECASE)
         for kw in high_risk_keywords
     )
 
@@ -312,9 +327,152 @@ def evaluate_risk_tier(tasks, contracts_dir, full_text):
         return "Light", "Plan is small (<= 3 tasks) with zero contract changes."
 
 
-def lint_plan(plan_path, prd_path=None, contracts_dir=None):
-    tasks, lines = parse_plan(plan_path)
-    plan_content = "".join(lines)
+# Regex matching brittle source-code file paths in 04_SPEC.md (Pocock's /to-spec rule)
+SOURCE_CODE_PATH_PATTERN = re.compile(
+    r"(?<![a-zA-Z0-9_\-\./])"
+    r"((?:src|app|lib|pkg|internal|cmd|components|services|controllers|models|routes|utils|scripts|tests)/"
+    r"[a-zA-Z0-9_\-\./]+\.(?:ts|tsx|js|jsx|py|go|rs|java|cs|rb|php|kt|swift|c|cc|cpp|h|hpp)|"
+    r"[a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-\./]+\.(?:ts|tsx|js|jsx|py|go|rs|java|cs|rb|php|kt|swift|c|cc|cpp))"
+    r"(?![a-zA-Z0-9_\-\./])"
+)
+
+
+def lint_spec_content(content: str) -> Dict[str, Any]:
+    """Flags brittle source-code file paths (e.g. `src/foo/bar.ts`, `app/models/user.py`) in 04_SPEC.md."""
+    errors: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+    flagged_paths: List[str] = []
+
+    lines = content.splitlines()
+    in_frontmatter = False
+    for idx, line in enumerate(lines, 1):
+        if idx == 1 and line.strip() == "---":
+            in_frontmatter = True
+            continue
+        if in_frontmatter:
+            if line.strip() == "---":
+                in_frontmatter = False
+            continue
+
+        for match in SOURCE_CODE_PATH_PATTERN.finditer(line):
+            path_str = match.group(1)
+            # Ignore contract schema files under contracts/
+            if path_str.startswith("contracts/"):
+                continue
+            flagged_paths.append(path_str)
+            errors.append({
+                "task": "SPEC_ABSTRACTION",
+                "line": idx,
+                "code": "SPEC_BRITTLE_FILE_PATH",
+                "path": path_str,
+                "message": (
+                    f"Brittle source-code file path '{path_str}' found in 04_SPEC.md. "
+                    "Keep 04_SPEC.md focused on interfaces, contracts, and architecture; "
+                    "defer concrete file paths to 05_PLAN.md."
+                ),
+            })
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings,
+        "flagged_paths": flagged_paths,
+    }
+
+
+def lint_spec_file(spec_path: str | Path) -> Dict[str, Any]:
+    """Reads and lints a 04_SPEC.md file for brittle source-code file paths and OKF staleness."""
+    p = Path(spec_path)
+    if not p.exists():
+        raise FileNotFoundError(f"Spec file not found: {spec_path}")
+    content = p.read_text(encoding="utf-8")
+    report = lint_spec_content(content)
+    staleness = check_sources_staleness(p)
+    report["errors"].extend(staleness["errors"])
+    report["warnings"].extend(staleness["warnings"])
+    report["valid"] = len(report["errors"]) == 0
+    return report
+
+
+def check_sources_staleness(
+    file_path: str | Path,
+    bundle_dir: Optional[str | Path] = None,
+) -> Dict[str, Any]:
+    """Checks OKF `sources` frontmatter `sha256` against upstream files on disk."""
+    p = Path(file_path).resolve()
+    b_dir = Path(bundle_dir).resolve() if bundle_dir else p.parent
+    errors: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+    stale_sources: List[str] = []
+
+    if not p.is_file():
+        return {"valid": False, "stale": False, "errors": [{"code": "FILE_NOT_FOUND", "line": 1, "message": f"File not found: {p}"}], "warnings": [], "stale_sources": []}
+
+    fm, _, fm_errs = extract_frontmatter(p)
+    if fm_errs or not fm:
+        # No OKF frontmatter present -> not stale
+        return {"valid": True, "stale": False, "errors": [], "warnings": [], "stale_sources": []}
+
+    sources = fm.get("sources", [])
+    if not isinstance(sources, list):
+        return {"valid": True, "stale": False, "errors": [], "warnings": [], "stale_sources": []}
+
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        res = src.get("resource", "")
+        expected_sha = src.get("sha256")
+        if not res:
+            continue
+
+        cand_parent = (p.parent / res).resolve()
+        cand_bundle = (b_dir / res).resolve()
+        resolved = cand_parent if cand_parent.is_file() else (cand_bundle if cand_bundle.is_file() else None)
+
+        if resolved is None:
+            warnings.append({
+                "task": "OKF_STALENESS",
+                "line": 1,
+                "code": "MISSING_UPSTREAM_SOURCE",
+                "resource": res,
+                "message": f"Upstream source '{res}' referenced in {p.name} frontmatter does not exist on disk.",
+            })
+            continue
+
+        if expected_sha:
+            actual_sha = file_sha256(resolved)
+            if actual_sha != expected_sha:
+                stale_sources.append(res)
+                errors.append({
+                    "task": "OKF_STALENESS",
+                    "line": 1,
+                    "code": "STALE_SOURCE_SHA256",
+                    "resource": res,
+                    "expected_sha256": expected_sha,
+                    "actual_sha256": actual_sha,
+                    "message": (
+                        f"Upstream source '{res}' has modified SHA-256 ({actual_sha[:12]}... != "
+                        f"recorded {expected_sha[:12]}...). Re-generate or re-verify {p.name}."
+                    ),
+                })
+
+    return {
+        "valid": len(errors) == 0,
+        "stale": len(stale_sources) > 0,
+        "errors": errors,
+        "warnings": warnings,
+        "stale_sources": stale_sources,
+    }
+
+
+def lint_plan_content(
+    plan_content: str,
+    prd_path: Optional[str] = None,
+    contracts_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lints raw 05_PLAN.md content string."""
+    lines = plan_content.splitlines(keepends=True)
+    tasks, _ = parse_plan_lines(lines)
 
     all_errors = []
     all_warnings = []
@@ -324,7 +482,7 @@ def lint_plan(plan_path, prd_path=None, contracts_dir=None):
             "task": "PLAN_EMPTY",
             "line": 1,
             "code": "NO_TASKS_FOUND",
-            "message": "No actionable checklist items found matching format '- [ ] Step X: ...'"
+            "message": "No actionable checklist items found matching format '- [ ] Step X: ...'",
         })
         return {
             "valid": False,
@@ -332,10 +490,9 @@ def lint_plan(plan_path, prd_path=None, contracts_dir=None):
             "errors": all_errors,
             "warnings": all_warnings,
             "recommended_tier": "Light",
-            "tier_reason": "No tasks present."
+            "tier_reason": "No tasks present.",
         }
 
-    # Run check passes
     tdd_errs, tdd_warns = check_tdd_pairing(tasks)
     dep_errs, dep_warns = check_dependencies(tasks)
     prd_errs, prd_warns = check_prd_traceability(tasks, prd_path, plan_content)
@@ -353,26 +510,68 @@ def lint_plan(plan_path, prd_path=None, contracts_dir=None):
         "warnings": all_warnings,
         "recommended_tier": tier,
         "tier_reason": tier_reason,
-        "tasks": [t.to_dict() for t in tasks]
+        "tasks": [t.to_dict() for t in tasks],
     }
 
 
+def lint_plan(plan_path, prd_path=None, contracts_dir=None):
+    tasks, lines = parse_plan(plan_path)
+    plan_content = "".join(lines)
+    report = lint_plan_content(plan_content, prd_path=prd_path, contracts_dir=contracts_dir)
+
+    # Also check OKF sources staleness if frontmatter is present on plan_path
+    staleness = check_sources_staleness(plan_path)
+    if staleness["errors"]:
+        report["errors"].extend(staleness["errors"])
+        report["valid"] = False
+    if staleness["warnings"]:
+        report["warnings"].extend(staleness["warnings"])
+
+    return report
+
+
+lint_plan_file = lint_plan
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Deterministic pre-linter for 05_PLAN.md")
-    parser.add_argument("--plan", required=True, help="Path to 05_PLAN.md")
-    parser.add_argument("--prd", help="Path to 02_PRD.md")
+    parser = argparse.ArgumentParser(description="Deterministic pre-linter for 05_PLAN.md and 04_SPEC.md")
+    parser.add_argument("--plan", help="Path to 05_PLAN.md")
+    parser.add_argument("--spec", help="Path to 04_SPEC.md")
+    parser.add_argument("--prd", help="Path to 03_PRD.md or 02_PRD.md")
     parser.add_argument("--contracts", help="Path to contracts/ directory")
     parser.add_argument("--json", action="store_true", help="Emit JSON output")
     args = parser.parse_args()
+
+    if args.spec and not args.plan:
+        spec_path = os.path.abspath(args.spec)
+        try:
+            spec_report = lint_spec_file(spec_path)
+        except Exception as e:
+            sys.stderr.write(f"[ERROR] Failed to lint spec: {e}\n")
+            sys.exit(2)
+        if args.json:
+            print(json.dumps(spec_report, indent=2))
+        else:
+            if spec_report["valid"]:
+                print("✅ 04_SPEC.md passed deterministic abstraction and staleness checks.")
+            else:
+                for err in spec_report["errors"]:
+                    print(f"  • [Line {err.get('line', 1)}] [{err['code']}] {err['message']}")
+        sys.exit(0 if spec_report["valid"] else 1)
+
+    if not args.plan:
+        parser.error("Either --plan or --spec is required.")
 
     plan_path = os.path.abspath(args.plan)
     plan_dir = os.path.dirname(plan_path)
 
     prd_path = args.prd
     if not prd_path:
-        candidate_prd = os.path.join(plan_dir, "02_PRD.md")
-        if os.path.exists(candidate_prd):
-            prd_path = candidate_prd
+        for cand_name in ("03_PRD.md", "02_PRD.md"):
+            candidate_prd = os.path.join(plan_dir, cand_name)
+            if os.path.exists(candidate_prd):
+                prd_path = candidate_prd
+                break
 
     contracts_dir = args.contracts
     if not contracts_dir:
@@ -382,6 +581,11 @@ def main():
 
     try:
         report = lint_plan(plan_path, prd_path, contracts_dir)
+        if args.spec:
+            spec_report = lint_spec_file(os.path.abspath(args.spec))
+            report["errors"].extend(spec_report["errors"])
+            report["warnings"].extend(spec_report["warnings"])
+            report["valid"] = len(report["errors"]) == 0
     except Exception as e:
         sys.stderr.write(f"[ERROR] Failed to lint plan: {e}\n")
         sys.exit(2)
@@ -397,19 +601,19 @@ def main():
         print(f"Council Tier:    {report['recommended_tier']} ({report['tier_reason']})")
         print("-" * 60)
 
-        if report['errors']:
+        if report["errors"]:
             print(f"❌ Found {len(report['errors'])} Error(s):")
-            for err in report['errors']:
+            for err in report["errors"]:
                 print(f"  • [Line {err['line']}] [{err['code']}] {err['message']}")
             print()
 
-        if report['warnings']:
+        if report["warnings"]:
             print(f"⚠️  Found {len(report['warnings'])} Warning(s):")
-            for warn in report['warnings']:
+            for warn in report["warnings"]:
                 print(f"  • [Line {warn['line']}] [{warn['code']}] {warn['message']}")
             print()
 
-        if report['valid']:
+        if report["valid"]:
             print("✅ Plan passed all deterministic structural and TDD checks.")
             print(f"👉 Ready to dispatch Stage 6A Council ({report['recommended_tier']} Tier).")
         else:

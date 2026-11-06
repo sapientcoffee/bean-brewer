@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Copyright 2026 Google LLC
+# Apache-2.0
+# Antigravity CLI (agy) CLI runner for plugins, test suites, and SDLC workflows
+
+set -euo pipefail
+
+PLUGINS_DIR="${HOME}/.gemini/config/plugins"
+
+cmd="${1:-help}"
+shift || true
+
+case "${cmd}" in
+  plugin)
+    subcmd="${1:-list}"
+    shift || true
+    case "${subcmd}" in
+      list)
+        echo "☕ Installed Antigravity Plugins in ${PLUGINS_DIR}:"
+        for p in "${PLUGINS_DIR}"/*; do
+          if [[ -d "${p}" || -L "${p}" ]]; then
+            bname="$(basename "${p}")"
+            if [[ -f "${p}/plugin.json" ]]; then
+              desc="$(python3 -c "import json; print(json.load(open('${p}/plugin.json')).get('description', ''))" 2>/dev/null || echo "")"
+              echo "  • ${bname}: ${desc}"
+            else
+              echo "  • ${bname}"
+            fi
+          fi
+        done
+        ;;
+      install)
+        target="${1:-.}"
+        target_abs="$(cd "${target}" && pwd)"
+        if [[ -f "${target_abs}/install.sh" ]]; then
+          echo "📦 Installing plugin via install.sh from ${target_abs}..."
+          (cd "${target_abs}" && bash install.sh)
+        elif [[ -f "${target_abs}/plugin.json" ]]; then
+          pname="$(python3 -c "import json; print(json.load(open('${target_abs}/plugin.json'))['name'])")"
+          echo "📦 Installing plugin ${pname} from ${target_abs}..."
+          dest="${PLUGINS_DIR}/${pname}"
+          mkdir -p "${dest}"
+          cp -r "${target_abs}/"* "${dest}/"
+          echo "✅ Installed ${pname} to ${dest}."
+        else
+          echo "❌ No install.sh or plugin.json found at ${target_abs}" >&2
+          exit 1
+        fi
+        ;;
+      *)
+        echo "Usage: agy plugin [list | install <path>]"
+        ;;
+    esac
+    ;;
+  test)
+    echo "🧪 Running tests across plugins..."
+    target="${1:-.}"
+    if [[ -d "${target}/tests" ]]; then
+      python3 -m unittest discover -s "${target}/tests" -v
+    else
+      python3 -m unittest discover -v
+    fi
+    ;;
+  run|stage)
+    echo "🚀 Executing Antigravity SDLC workflow stage..."
+    exec python3 "${HOME}/.gemini/config/plugins/bean-core/scripts/okf.py" "$@"
+    ;;
+  help|--help|-h)
+    cat <<'HELP'
+Antigravity CLI (agy)
+
+Commands:
+  agy plugin list             List installed Antigravity plugins
+  agy plugin install <path>   Install a plugin into the local plugin directory
+  agy test [path]             Run tests for a plugin or directory
+  agy run <subcommand>        Run workflow automation via OKF engine
+  agy help                    Display this help message
+HELP
+    ;;
+  *)
+    echo "Unknown command: ${cmd}. Run 'agy help' for usage." >&2
+    exit 1
+    ;;
+esac
