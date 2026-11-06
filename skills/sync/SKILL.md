@@ -24,7 +24,7 @@ limitations under the License.
 This skill parses the active execution plan (`05_PLAN.md`), extracts implementation steps and checklists, and synchronizes them with GitHub Issues using the GitHub CLI (`gh`).
 
 ## 1. Objective
-To automate the traceability of technical decisions and ensure that every item on the execution plan's checklist is mapped to an actionable, tracked issue on GitHub. This integrates Phase 5 (Execution Planning) with Stage 6/7 tracking.
+To automate the traceability of technical decisions and ensure that every item on the execution plan's checklist is mapped to an actionable, tracked issue on GitHub. This integrates post-approval Stage 6B plans into Stage 6C issue provisioning ahead of Stage 7 execution.
 
 ## 2. Workflow Steps
 
