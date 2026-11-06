@@ -11,6 +11,8 @@ venv/
 # AGY / Gemini CLI
 .agents/
 .gemini/
+plans/
+.scratch/
 scratch/
 *.log
 
