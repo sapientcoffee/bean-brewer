@@ -28,9 +28,14 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
+INSTALLED_BEAN_CORE_DIR = Path.home() / ".gemini" / "config" / "plugins" / "bean-core"
 PARENT_BEAN_CORE_DIR = Path("/home/robedwards/.gemini/antigravity/brain/b378ef20-777a-4118-8769-a131f94ede8a/scratch/bean-core")
 LOCAL_BEAN_CORE_DIR = Path("/home/robedwards/.gemini/antigravity/brain/d59a964f-e729-4b33-a899-b2d5b5adaea6/scratch/bean-core")
-BEAN_CORE_DIR = PARENT_BEAN_CORE_DIR if PARENT_BEAN_CORE_DIR.is_dir() else LOCAL_BEAN_CORE_DIR
+BEAN_CORE_DIR = (
+    INSTALLED_BEAN_CORE_DIR
+    if INSTALLED_BEAN_CORE_DIR.is_dir()
+    else (PARENT_BEAN_CORE_DIR if PARENT_BEAN_CORE_DIR.is_dir() else LOCAL_BEAN_CORE_DIR)
+)
 
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))

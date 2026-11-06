@@ -36,6 +36,8 @@ You are executing Stage 2 **Blind Cupping** (`research`). Your sole mission is t
 3. **Documentarians, Not Critics**:
    - Do **NOT** suggest improvements, critiques, root-cause analyses, or architectural changes.
    - Describe **only** what exists, where it lives (`path/to/file.py:123`), how data flows, and what patterns are currently implemented.
+4. **Strictly Forbid `/teamwork` During Stage 2 Blind Cupping**:
+   - **NEVER** use Antigravity `/teamwork` mode during Stage 2 Blind Cupping. All scouts (`research`, `@context-mapping`, `@codebase-analysis`, `@pattern-recognition`) and `@extraction-synthesizer` must be dispatched via isolated `invoke_subagent` calls to preserve Horthy's Information Barrier and prevent peer-to-peer solution bias contamination.
 
 ---
 
@@ -51,8 +53,8 @@ Spawn parallel read-only subagents via `invoke_subagent` to investigate distinct
 - **`@codebase-analysis`**: Deep execution-path tracer to document control flow, state transitions, and function signatures with `file:line` references.
 - **`@pattern-recognition`**: Pattern cataloger to extract concrete usage idioms and testing conventions from the live repository.
 
-### Step 3: Synthesize `.scratch/<id>/02_EXTRACTION.md`
-Wait for all subagents to complete and synthesize their factual findings into `.scratch/<id>/02_EXTRACTION.md`:
+### Step 3: Delegate Synthesis of `.scratch/<id>/02_EXTRACTION.md` to `@extraction-synthesizer`
+Wait for all read-only scouts to complete, then invoke `@extraction-synthesizer` via `invoke_subagent` to compile their factual findings against `.scratch/<id>/01_QUESTIONS.md` into `.scratch/<id>/02_EXTRACTION.md` (keeping `@expo` in the Smart Zone):
 
 ```markdown
 # 02 Blind Cupping Extraction: <Topic>
@@ -74,7 +76,7 @@ References to `Status: Accepted` ADRs governing the inspected subsystems.
 ```
 
 ### Step 4: Stamp OKF Metadata
-Run `scripts/okf.py stamp` via `run_command` to attach deterministic OKF frontmatter:
+`@extraction-synthesizer` (or `@expo` on verification) runs `scripts/okf.py stamp` via `run_command` to attach deterministic OKF frontmatter:
 ```bash
 python3 scripts/okf.py stamp --file ".scratch/<id>/02_EXTRACTION.md" --doc-type "extraction" --status "Complete"
 ```

@@ -27,12 +27,13 @@ You are executing the **Recipe Card Spec** (`to-spec`) skill for Stage 4 of the 
 
 ## ⚡ Operational Protocol
 
-### Step 1: Ingest Inputs
-1. Read `.scratch/<id>/02_EXTRACTION.md` to understand existing component boundaries, domain interfaces, and architectural invariants.
-2. Read `.scratch/<id>/03_PRD.md` to extract user stories, numbered acceptance criteria (`AC1..ACN`), and non-goals.
+### Step 1: Delegate Specification Synthesis to `@system-design` (`invoke_subagent`)
+To keep the Head Barista (`@expo`) inside the Smart Zone ($< 100\text{K}$ tokens), delegate Gate 1 specification synthesis to `@system-design` via `invoke_subagent`:
+1. Instruct `@system-design` to read `.scratch/<id>/02_EXTRACTION.md` (existing component boundaries, domain interfaces, and architectural invariants) and `.scratch/<id>/03_PRD.md` (user stories, numbered acceptance criteria `AC1..ACN`, and non-goals).
+2. `@system-design` authors `.scratch/<id>/04_SPEC.md` and physical schema contracts in `.scratch/<id>/contracts/`, stamps OKF frontmatter, and returns a concise ($\le 300$ words) summary.
 
 ### Step 2: Enforce Zero Brittle Source File Paths
-- **CRITICAL**: Do **NOT** hardcode brittle implementation file paths or line numbers inside `.scratch/<id>/04_SPEC.md`.
+- **CRITICAL**: `@system-design` must **NOT** hardcode brittle implementation file paths or line numbers inside `.scratch/<id>/04_SPEC.md`.
 - Describe architecture strictly through **Durable Module Boundaries**, **Public Interfaces**, **Data Contracts**, and **State Transitions**. File path mapping belongs exclusively to `02_EXTRACTION.md` and ephemeral execution slices.
 
 ### Step 3: Emit Physical Schema Contracts (`contracts/`)
@@ -45,10 +46,11 @@ You are executing the **Recipe Card Spec** (`to-spec`) skill for Stage 4 of the 
   - **Fixture / Harness Strategy**: In-memory fake, contract test, or integration harness required.
   - **Mapped ACs**: Traceability back to `AC1..ACN` from `03_PRD.md`.
 
-### Step 5: Stamp OKF Frontmatter
-Stamp deterministic OKF frontmatter on `.scratch/<id>/04_SPEC.md`:
+### Step 5: Stamp OKF Frontmatter & Lint Spec
+Stamp deterministic OKF frontmatter on `.scratch/<id>/04_SPEC.md` and verify zero brittle source file paths via `plan_lint.py`:
 ```bash
 python3 scripts/okf.py stamp --file ".scratch/<id>/04_SPEC.md" --doc-type "spec" --status "Draft"
+python3 scripts/plan_lint.py --spec ".scratch/<id>/04_SPEC.md"
 ```
 
 ---

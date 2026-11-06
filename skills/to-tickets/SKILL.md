@@ -27,7 +27,8 @@ You are executing the **Recipe Card Slices** (`to-tickets`) skill for Stage 5 of
 
 ## ⚡ Operational Protocol
 
-### Step 1: Decompose into Tracer-Bullet Vertical Slices
+### Step 1: Delegate Vertical-Slice Decomposition to `@system-design` (`invoke_subagent`)
+- Delegate Gate 2 vertical-slice planning to `@system-design` via `invoke_subagent` so `@expo` remains in the Smart Zone ($< 100\text{K}$ tokens).
 - Avoid horizontal layer-cake tasks (e.g., "create all DB tables", then "create all API routes").
 - Each ticket (`SLICE-01`, `SLICE-02`, ...) must cut vertically through contract, logic, and verification harness (`SEAM-01..N`) so it compiles, passes tests, and delivers verifiable behavior independently.
 
